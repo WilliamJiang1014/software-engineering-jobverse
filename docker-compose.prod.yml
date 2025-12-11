@@ -1,0 +1,220 @@
+# JobVerse 生产环境 Docker Compose 配置
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: jobverse-postgres-prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - jobverse-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: jobverse-redis-prod
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - jobverse-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: jobverse-api-gateway-prod
+    environment:
+      - NODE_ENV=production
+      - API_GATEWAY_PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - USER_SERVICE_URL=http://user-service:3001
+      - JOB_SERVICE_URL=http://job-service:3002
+      - SEARCH_SERVICE_URL=http://search-service:3003
+      - REVIEW_SERVICE_URL=http://review-service:3004
+      - RISK_SERVICE_URL=http://risk-service:3005
+      - AUDIT_SERVICE_URL=http://audit-service:3006
+      - FRONTEND_URL=${FRONTEND_URL}
+    depends_on:
+      - user-service
+      - job-service
+      - search-service
+    restart: always
+    networks:
+      - jobverse-network
+
+  # 用户服务
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    container_name: jobverse-user-service-prod
+    environment:
+      - NODE_ENV=production
+      - USER_SERVICE_PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - jobverse-network
+
+  # 岗位服务
+  job-service:
+    build:
+      context: .
+      dockerfile: services/job-service/Dockerfile
+    container_name: jobverse-job-service-prod
+    environment:
+      - NODE_ENV=production
+      - JOB_SERVICE_PORT=3002
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - jobverse-network
+
+  # 搜索服务
+  search-service:
+    build:
+      context: .
+      dockerfile: services/search-service/Dockerfile
+    container_name: jobverse-search-service-prod
+    environment:
+      - NODE_ENV=production
+      - SEARCH_SERVICE_PORT=3003
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - jobverse-network
+
+  # 审核服务
+  review-service:
+    build:
+      context: .
+      dockerfile: services/review-service/Dockerfile
+    container_name: jobverse-review-service-prod
+    environment:
+      - NODE_ENV=production
+      - REVIEW_SERVICE_PORT=3004
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    networks:
+      - jobverse-network
+
+  # 风控服务
+  risk-service:
+    build:
+      context: .
+      dockerfile: services/risk-service/Dockerfile
+    container_name: jobverse-risk-service-prod
+    environment:
+      - NODE_ENV=production
+      - RISK_SERVICE_PORT=3005
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    networks:
+      - jobverse-network
+
+  # 审计服务
+  audit-service:
+    build:
+      context: .
+      dockerfile: services/audit-service/Dockerfile
+    container_name: jobverse-audit-service-prod
+    environment:
+      - NODE_ENV=production
+      - AUDIT_SERVICE_PORT=3006
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    networks:
+      - jobverse-network
+
+  # 前端服务
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    container_name: jobverse-frontend-prod
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    depends_on:
+      - api-gateway
+    restart: always
+    networks:
+      - jobverse-network
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: jobverse-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - api-gateway
+    restart: always
+    networks:
+      - jobverse-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  jobverse-network:
+    name: jobverse-network-prod
+    driver: bridge
+

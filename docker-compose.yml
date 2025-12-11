@@ -1,0 +1,225 @@
+# JobVerse 开发环境 Docker Compose 配置
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: jobverse-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-jobverse}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jobverse_password_2024}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-jobverse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: jobverse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: jobverse-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - API_GATEWAY_PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-jobverse_jwt_secret_key_change_in_production_2024}
+      - USER_SERVICE_URL=http://user-service:3001
+      - JOB_SERVICE_URL=http://job-service:3002
+      - SEARCH_SERVICE_URL=http://search-service:3003
+      - REVIEW_SERVICE_URL=http://review-service:3004
+      - RISK_SERVICE_URL=http://risk-service:3005
+      - AUDIT_SERVICE_URL=http://audit-service:3006
+      - FRONTEND_URL=http://localhost:8080
+    depends_on:
+      - user-service
+      - job-service
+      - search-service
+      - review-service
+      - risk-service
+      - audit-service
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # 用户服务
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    container_name: jobverse-user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - USER_SERVICE_PORT=3001
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-jobverse_jwt_secret_key_change_in_production_2024}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1h}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # 岗位服务
+  job-service:
+    build:
+      context: .
+      dockerfile: services/job-service/Dockerfile
+    container_name: jobverse-job-service
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - JOB_SERVICE_PORT=3002
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # 搜索服务
+  search-service:
+    build:
+      context: .
+      dockerfile: services/search-service/Dockerfile
+    container_name: jobverse-search-service
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - SEARCH_SERVICE_PORT=3003
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # 审核服务
+  review-service:
+    build:
+      context: .
+      dockerfile: services/review-service/Dockerfile
+    container_name: jobverse-review-service
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - REVIEW_SERVICE_PORT=3004
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # 风控服务
+  risk-service:
+    build:
+      context: .
+      dockerfile: services/risk-service/Dockerfile
+    container_name: jobverse-risk-service
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=development
+      - RISK_SERVICE_PORT=3005
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # 审计服务
+  audit-service:
+    build:
+      context: .
+      dockerfile: services/audit-service/Dockerfile
+    container_name: jobverse-audit-service
+    ports:
+      - "3006:3006"
+    environment:
+      - NODE_ENV=development
+      - AUDIT_SERVICE_PORT=3006
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+  # 前端服务
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    container_name: jobverse-frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+    networks:
+      - jobverse-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  jobverse-network:
+    name: jobverse-network
+    driver: bridge
+

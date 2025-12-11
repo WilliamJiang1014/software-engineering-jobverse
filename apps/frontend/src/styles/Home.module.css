@@ -1,0 +1,100 @@
+.layout {
+  min-height: 100vh;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #1677ff 0%, #0958d9 100%);
+  padding: 0 50px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+}
+
+.content {
+  padding: 0;
+}
+
+.searchSection {
+  background: linear-gradient(135deg, #1677ff 0%, #0958d9 100%);
+  padding: 60px 50px 80px;
+  text-align: center;
+}
+
+.searchTitle {
+  color: #fff !important;
+  margin-bottom: 30px !important;
+}
+
+.searchInput {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.hotTags {
+  margin-top: 20px;
+}
+
+.hotTag {
+  cursor: pointer;
+  margin: 4px;
+}
+
+.hotTag:hover {
+  color: #1677ff;
+  border-color: #1677ff;
+}
+
+.jobSection {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.jobCard {
+  height: 100%;
+}
+
+.jobHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.jobTitle {
+  margin: 0 !important;
+  flex: 1;
+}
+
+.jobCompany {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.jobMeta {
+  margin-bottom: 12px;
+}
+
+.jobTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.moreJobs {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.footer {
+  text-align: center;
+  background: #f5f5f5;
+}
+

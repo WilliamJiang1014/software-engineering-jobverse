@@ -1,0 +1,27 @@
+import { Request, Response, NextFunction } from 'express';
+
+/**
+ * 全局错误处理中间件
+ */
+export const errorHandler = (
+  err: Error,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+) => {
+  console.error('API Gateway Error:', err);
+
+  // 默认错误响应
+  const statusCode = 500;
+  const message = process.env.NODE_ENV === 'production' 
+    ? '服务器内部错误' 
+    : err.message;
+
+  res.status(statusCode).json({
+    code: statusCode,
+    message,
+    error: process.env.NODE_ENV === 'production' ? undefined : err.stack,
+  });
+};
+
+

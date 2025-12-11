@@ -1,0 +1,38 @@
+{
+  "name": "jobverse",
+  "version": "1.0.0",
+  "description": "JobVerse 面向高校学生的智能一体化招聘平台",
+  "private": true,
+  "scripts": {
+    "dev": "docker-compose up -d",
+    "dev:logs": "docker-compose logs -f",
+    "dev:stop": "docker-compose down",
+    "dev:rebuild": "docker-compose up -d --build",
+    "prod": "docker-compose -f docker-compose.prod.yml up -d",
+    "prod:stop": "docker-compose -f docker-compose.prod.yml down",
+    "install:all": "pnpm install",
+    "build:shared": "pnpm --filter @jobverse/shared build",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+  },
+  "keywords": [
+    "recruitment",
+    "job-search",
+    "campus-hiring",
+    "microservices"
+  ],
+  "author": "JobVerse Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
+
+
