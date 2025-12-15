@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
+import bcrypt from 'bcrypt';
 import { successResponse, ErrorResponses, registerSchema, loginSchema } from '@jobverse/shared';
+import { prisma } from '../lib/prisma';
+import { generateAccessToken, generateRefreshToken } from '../lib/jwt';
 
 const router: Router = Router();
 
@@ -51,24 +54,55 @@ router.post('/login', async (req: Request, res: Response) => {
       );
     }
 
-    // TODO: 实现实际的用户登录逻辑
-    // const { email, password } = validationResult.data;
+    const { email, password } = validationResult.data;
 
-    // 模拟登录成功
-    const mockResponse = {
-      user: {
-        id: 'mock-user-id',
-        email: validationResult.data.email,
-        name: '测试用户',
-        role: 'STUDENT',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      accessToken: 'mock-access-token',
-      refreshToken: 'mock-refresh-token',
+    // 查询用户
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    // 用户不存在或密码错误
+    if (!user) {
+      return res.status(401).json(
+        ErrorResponses.unauthorized('邮箱或密码错误')
+      );
+    }
+
+    // 验证密码
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      return res.status(401).json(
+        ErrorResponses.unauthorized('邮箱或密码错误')
+      );
+    }
+
+    // 生成 Token
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      role: user.role,
+    });
+    const refreshToken = generateRefreshToken({
+      userId: user.id,
+      role: user.role,
+    });
+
+    // 返回用户信息（不包含密码）
+    const userResponse = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      phone: user.phone,
+      avatar: user.avatar,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
 
-    res.json(successResponse(mockResponse, '登录成功'));
+    res.json(successResponse({
+      user: userResponse,
+      accessToken,
+      refreshToken,
+    }, '登录成功'));
   } catch (error) {
     console.error('登录失败:', error);
     res.status(500).json(ErrorResponses.internalError());
@@ -129,19 +163,28 @@ router.get('/me', async (req: Request, res: Response) => {
       return res.status(401).json(ErrorResponses.unauthorized());
     }
 
-    // TODO: 实现实际的用户信息获取逻辑
+    // 从数据库查询用户信息
+    const user = await prisma.user.findUnique({
+      where: { id: userId as string },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        phone: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
-    // 模拟用户信息
-    const mockUser = {
-      id: userId,
-      email: 'user@example.com',
-      name: '测试用户',
-      role: 'STUDENT',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    if (!user) {
+      return res.status(404).json(
+        ErrorResponses.notFound('用户不存在')
+      );
+    }
 
-    res.json(successResponse(mockUser));
+    res.json(successResponse(user));
   } catch (error) {
     console.error('获取用户信息失败:', error);
     res.status(500).json(ErrorResponses.internalError());

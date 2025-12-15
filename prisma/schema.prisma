@@ -3,7 +3,12 @@
 
 generator client {
   provider = "prisma-client-js"
+  // 明确指定二进制目标，优先使用 OpenSSL 3.0.x（Alpine Linux 默认）
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl"]
 }
+
+// 配置 seed 脚本
+// 运行方式: pnpm db:seed 或 npx ts-node prisma/seed.ts
 
 datasource db {
   provider = "postgresql"

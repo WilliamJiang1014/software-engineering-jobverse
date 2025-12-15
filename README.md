@@ -20,9 +20,11 @@ JobVerse 是一个基于微服务架构的现代化招聘平台，专门为高�
 - **Node.js 18** - 运行时
 - **Express 4** - Web 框架
 - **TypeScript 5** - 类型安全
-- **Prisma 5** - ORM
+- **Prisma 6** - ORM（已升级，支持 OpenSSL 3.x）
 - **PostgreSQL 15** - 主数据库
 - **Redis 7** - 缓存
+- **JWT** - 身份认证
+- **bcrypt** - 密码加密
 
 ### 部署
 - **Docker** - 容器化
@@ -102,13 +104,41 @@ docker-compose logs -f
 docker-compose logs -f api-gateway
 ```
 
-### 3. 访问应用
+### 3. 初始化数据库（首次运行）
+
+```bash
+# 创建数据库表结构
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:push
+
+# 生成 Prisma Client
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:generate
+
+# 初始化种子数据（创建测试账号）
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:seed
+```
+
+### 4. 访问应用
 
 - **前端应用**: http://localhost:8080
 - **API Gateway**: http://localhost:3000
 - **API 健康检查**: http://localhost:3000/health
+- **用户服务直接访问**: http://localhost:3001
 
-### 4. 停止服务
+### 5. 测试登录功能
+
+```bash
+# 测试学生登录
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"student@jobverse.test","password":"jobverse123"}'
+
+# 测试企业用户登录
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"employer1@jobverse.test","password":"jobverse123"}'
+```
+
+### 6. 停止服务
 
 ```bash
 # 停止所有服务
@@ -119,6 +149,26 @@ docker-compose down -v
 ```
 
 ## 开发指南
+
+### 快速启动（完整流程）
+
+```bash
+# 1. 启动所有服务
+docker-compose up -d
+
+# 2. 等待服务启动（约 10-15 秒）
+sleep 10
+
+# 3. 初始化数据库（首次运行）
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:push
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:generate
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:seed
+
+# 4. 测试登录功能
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"student@jobverse.test","password":"jobverse123"}'
+```
 
 ### 本地开发（不使用 Docker）
 
@@ -134,54 +184,128 @@ pnpm build:shared
 # 启动数据库和 Redis（使用 Docker）
 docker-compose up -d postgres redis
 
+# 等待数据库就绪后，初始化数据库
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:push
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:generate
+DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:seed
+
 # 进入特定服务目录开发
 cd services/user-service
 pnpm dev
 ```
 
-### 数据库迁移
+### 数据库初始化
+
+#### 1. 创建数据库表结构
 
 ```bash
-# 生成迁移文件
-cd services/user-service
+# 方式1：使用 migrate（推荐，会生成迁移历史）
 pnpm db:migrate
 
-# 同步数据库
+# 方式2：直接推送 schema（开发环境快速使用）
 pnpm db:push
+```
 
-# 生成 Prisma Client
+#### 2. 生成 Prisma Client
+
+```bash
 pnpm db:generate
 ```
+
+#### 3. 初始化种子数据（可选，用于开发/测试）
+
+```bash
+# 运行种子脚本，创建测试账号和示例数据
+pnpm db:seed
+```
+
+**测试账号信息**（统一密码：`jobverse123`）：
+- 学生：`student@jobverse.test`
+- 企业：`employer1@jobverse.test` / `employer2@jobverse.test`
+- 学校管理员：`school@jobverse.test`
+- 平台管理员：`admin@jobverse.test`
+
+更多详细信息请查看 [prisma/README.md](./prisma/README.md)
+
+## 开发进度
+
+### ✅ 已完成功能
+
+- **数据库初始化**
+  - ✅ Prisma Schema 定义完成
+  - ✅ 种子数据脚本完成（7个用户、3个企业、8个岗位等）
+  - ✅ 数据库迁移和初始化流程完善
+
+- **用户认证服务**
+  - ✅ 用户登录（真实数据库查询、密码验证、JWT 生成）
+  - ✅ 获取当前用户信息（`/api/v1/auth/me`）
+  - ✅ JWT Token 生成和验证
+  - ✅ 多角色支持（STUDENT, EMPLOYER, SCHOOL_ADMIN, PLATFORM_ADMIN）
+
+- **基础设施**
+  - ✅ Docker 容器化部署
+  - ✅ 微服务架构搭建
+  - ✅ API Gateway 路由配置
+  - ✅ Prisma 6.x 升级（解决 OpenSSL 3.x 兼容性）
+
+### 🚧 开发中功能
+
+- 用户注册
+- 岗位搜索和筛选
+- 岗位详情查看
+- 投递和收藏功能
+- 企业端岗位管理
+- 学校端审核功能
 
 ## API 接口
 
 ### 认证 API
-- `POST /api/v1/auth/register` - 用户注册
-- `POST /api/v1/auth/login` - 用户登录
-- `POST /api/v1/auth/logout` - 用户登出
-- `GET /api/v1/auth/me` - 获取当前用户
+
+| 接口 | 方法 | 状态 | 说明 |
+|------|------|------|------|
+| `POST /api/v1/auth/login` | POST | ✅ 已实现 | 用户登录（支持所有角色） |
+| `GET /api/v1/auth/me` | GET | ✅ 已实现 | 获取当前用户信息（需要 JWT） |
+| `POST /api/v1/auth/register` | POST | 🚧 待实现 | 用户注册 |
+| `POST /api/v1/auth/logout` | POST | 🚧 待实现 | 用户登出 |
+| `POST /api/v1/auth/refresh` | POST | 🚧 待实现 | 刷新 Token |
 
 ### 岗位 API
-- `GET /api/v1/jobs` - 获取岗位列表
-- `GET /api/v1/jobs/:id` - 获取岗位详情
-- `POST /api/v1/jobs/:id/apply` - 投递岗位
-- `POST /api/v1/jobs/:id/bookmark` - 收藏岗位
+
+| 接口 | 方法 | 状态 | 说明 |
+|------|------|------|------|
+| `GET /api/v1/jobs` | GET | 🚧 Mock | 获取岗位列表 |
+| `GET /api/v1/jobs/:id` | GET | 🚧 Mock | 获取岗位详情 |
+| `POST /api/v1/jobs/:id/apply` | POST | 🚧 Mock | 投递岗位 |
+| `POST /api/v1/jobs/:id/bookmark` | POST | 🚧 Mock | 收藏岗位 |
 
 ### 搜索 API
-- `GET /api/v1/search/jobs` - 搜索岗位
-- `GET /api/v1/search/suggest` - 搜索建议
-- `GET /api/v1/search/hot` - 热门搜索
+
+| 接口 | 方法 | 状态 | 说明 |
+|------|------|------|------|
+| `GET /api/v1/search/jobs` | GET | 🚧 Mock | 搜索岗位 |
+| `GET /api/v1/search/suggest` | GET | 🚧 Mock | 搜索建议 |
+| `GET /api/v1/search/hot` | GET | 🚧 Mock | 热门搜索 |
 
 ### 企业端 API
-- `GET /api/v1/employer/jobs` - 获取发布的岗位
-- `POST /api/v1/employer/jobs` - 创建岗位
-- `PUT /api/v1/employer/jobs/:id` - 更新岗位
-- `POST /api/v1/employer/jobs/:id/submit` - 提交审核
+
+| 接口 | 方法 | 状态 | 说明 |
+|------|------|------|------|
+| `GET /api/v1/employer/jobs` | GET | 🚧 Mock | 获取发布的岗位 |
+| `POST /api/v1/employer/jobs` | POST | 🚧 Mock | 创建岗位 |
+| `PUT /api/v1/employer/jobs/:id` | PUT | 🚧 Mock | 更新岗位 |
+| `POST /api/v1/employer/jobs/:id/submit` | POST | 🚧 Mock | 提交审核 |
 
 ### 管理端 API
-- `GET /api/v1/admin/review/pending` - 待审核列表
-- `POST /api/v1/admin/review/jobs/:id` - 审核岗位
-- `GET /api/v1/admin/audit/logs` - 审计日志
+
+| 接口 | 方法 | 状态 | 说明 |
+|------|------|------|------|
+| `GET /api/v1/admin/review/pending` | GET | 🚧 Mock | 待审核列表 |
+| `POST /api/v1/admin/review/jobs/:id` | POST | 🚧 Mock | 审核岗位 |
+| `GET /api/v1/admin/audit/logs` | GET | 🚧 Mock | 审计日志 |
+
+**图例说明**：
+- ✅ 已实现 - 功能已完成并测试通过
+- 🚧 Mock - 接口已定义但使用模拟数据，待实现真实逻辑
 
 ## 生产环境部署
 
@@ -193,6 +317,27 @@ cp env.example .env.prod
 # 启动生产环境
 docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
 ```
+
+## 测试账号
+
+所有测试账号统一密码：`jobverse123`
+
+| 角色 | 邮箱 | 说明 |
+|------|------|------|
+| 学生 | `student@jobverse.test` | 主测试账号 |
+| 企业 | `employer1@jobverse.test` | XX科技有限公司 |
+| 企业 | `employer2@jobverse.test` | YY互联网公司 |
+| 学校管理员 | `school@jobverse.test` | 就业中心 |
+| 平台管理员 | `admin@jobverse.test` | 平台管理员 |
+
+## 已知问题
+
+- API Gateway (3000端口) 部分路由可能需要重启服务
+- 建议直接访问各服务端口进行测试（如 user-service:3001）
+
+## 更新日志
+
+详细的更新记录请查看 [CHANGELOG.md](./CHANGELOG.md)
 
 ## 项目团队
 

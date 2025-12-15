@@ -3,21 +3,16 @@ FROM node:18-alpine AS base
 
 RUN npm install -g pnpm
 
-FROM base AS deps
-WORKDIR /app
-
-COPY apps/frontend/package.json ./
-RUN pnpm install
-
 FROM base AS builder
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
+# 复制前端应用所有文件
 COPY apps/frontend ./
 
 ENV NEXT_TELEMETRY_DISABLED 1
 
-RUN pnpm build
+# 安装依赖并构建
+RUN pnpm install && pnpm build
 
 FROM node:18-alpine AS runner
 WORKDIR /app
