@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // 创建 axios 实例
 const api = axios.create({
-  // 临时直接访问 user-service，绕过 API Gateway
+  // 开发环境直接访问 user-service（3001），生产环境通过 API Gateway（3000）
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
   timeout: 10000,
   headers: {
