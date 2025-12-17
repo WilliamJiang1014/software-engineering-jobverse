@@ -55,6 +55,7 @@ export interface LoginResponse {
 export interface JwtPayload {
   userId: string;
   role: UserRole;
+  type?: 'refresh';
   iat: number;
   exp: number;
 }

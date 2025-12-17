@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import { successResponse, ErrorResponses, registerSchema, loginSchema } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
-import { generateAccessToken, generateRefreshToken } from '../lib/jwt';
+import { generateAccessToken, generateRefreshToken, verifyToken } from '../lib/jwt';
 
 const router: Router = Router();
 
@@ -20,20 +20,54 @@ router.post('/register', async (req: Request, res: Response) => {
       );
     }
 
-    // TODO: 实现实际的用户注册逻辑
-    // const { email, password, name, role } = validationResult.data;
-    
-    // 模拟注册成功
-    const mockUser = {
-      id: 'mock-user-id',
-      email: validationResult.data.email,
-      name: validationResult.data.name,
-      role: validationResult.data.role || 'STUDENT',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    const { email, password, name, role } = validationResult.data;
 
-    res.status(201).json(successResponse(mockUser, '注册成功'));
+    // 检查邮箱是否已存在
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      return res.status(400).json(
+        ErrorResponses.badRequest('该邮箱已被注册')
+      );
+    }
+
+    // 加密密码
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // 创建用户
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name,
+        role: role || 'STUDENT',
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // 生成 Token
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      role: user.role,
+    });
+    const refreshToken = generateRefreshToken({
+      userId: user.id,
+      role: user.role,
+    });
+
+    res.status(201).json(successResponse({
+      user,
+      accessToken,
+      refreshToken,
+    }, '注册成功'));
   } catch (error) {
     console.error('注册失败:', error);
     res.status(500).json(ErrorResponses.internalError());
@@ -121,15 +155,41 @@ router.post('/refresh', async (req: Request, res: Response) => {
       return res.status(400).json(ErrorResponses.badRequest('refreshToken 不能为空'));
     }
 
-    // TODO: 实现实际的Token刷新逻辑
+    // 验证 refreshToken
+    let decoded;
+    try {
+      decoded = verifyToken(refreshToken);
+    } catch {
+      return res.status(401).json(ErrorResponses.unauthorized('Token 无效或已过期'));
+    }
 
-    // 模拟刷新成功
-    const mockResponse = {
-      accessToken: 'new-mock-access-token',
-      refreshToken: 'new-mock-refresh-token',
-    };
+    // 检查是否为 refresh token
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json(ErrorResponses.unauthorized('无效的 refreshToken'));
+    }
 
-    res.json(successResponse(mockResponse, '刷新成功'));
+    // 检查用户是否存在
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+    if (!user) {
+      return res.status(401).json(ErrorResponses.unauthorized('用户不存在'));
+    }
+
+    // 生成新的 Token
+    const newAccessToken = generateAccessToken({
+      userId: user.id,
+      role: user.role,
+    });
+    const newRefreshToken = generateRefreshToken({
+      userId: user.id,
+      role: user.role,
+    });
+
+    res.json(successResponse({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    }, '刷新成功'));
   } catch (error) {
     console.error('刷新Token失败:', error);
     res.status(500).json(ErrorResponses.internalError());
@@ -142,8 +202,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
  */
 router.post('/logout', async (_req: Request, res: Response) => {
   try {
-    // TODO: 实现实际的登出逻辑（如清除Redis中的Token）
-    
+    // 当前使用无状态JWT，登出由前端清除Token
+    // 如需实现Token黑名单，可在此将Token存入Redis
     res.json(successResponse(null, '登出成功'));
   } catch (error) {
     console.error('登出失败:', error);

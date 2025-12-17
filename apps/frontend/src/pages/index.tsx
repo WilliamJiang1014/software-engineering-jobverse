@@ -61,7 +61,7 @@ export default function Home() {
             <Title level={3} style={{ color: '#fff', margin: 0 }}>JobVerse</Title>
           </div>
           <Space>
-            <Button type="link" style={{ color: '#fff' }}>登录</Button>
+            <Button type="link" style={{ color: '#fff' }} href="/login">登录</Button>
             <Button type="primary" ghost>注册</Button>
           </Space>
         </Header>
