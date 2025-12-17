@@ -49,6 +49,7 @@ export const jobSearchSchema = z.object({
   salaryMin: z.coerce.number().int().positive().optional(),
   salaryMax: z.coerce.number().int().positive().optional(),
   tags: z.array(z.string()).optional(),
+  companyId: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });

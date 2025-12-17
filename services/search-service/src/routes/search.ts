@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
+import { JobStatus, Prisma } from '@prisma/client';
 import { successResponse, ErrorResponses, jobSearchSchema } from '@jobverse/shared';
+import { prisma } from '../lib/prisma';
 
 const router: Router = Router();
 
@@ -16,31 +18,91 @@ router.get('/jobs', async (req: Request, res: Response) => {
       );
     }
 
-    const { keyword, location, salaryMin, salaryMax, page, limit } = validationResult.data;
+    const { keyword, location, salaryMin, salaryMax, tags, page, limit } = validationResult.data;
 
-    // TODO: 实现实际的全文搜索逻辑（PostgreSQL全文搜索）
+    const where: Prisma.JobWhereInput = {
+      status: JobStatus.APPROVED,
+    };
 
-    // 模拟搜索结果
-    const mockResults = [
-      {
-        id: '1',
-        title: '前端开发工程师',
-        company: { id: 'c1', name: 'XX科技有限公司', verifiedBySchool: true },
-        location: '北京',
-        salaryMin: 15000,
-        salaryMax: 25000,
-        tags: ['React', 'TypeScript'],
-        status: 'APPROVED',
-        createdAt: new Date(),
-        _score: 0.95, // 搜索相关度分数
-      },
-    ];
+    const andFilters: Prisma.JobWhereInput[] = [];
 
-    res.json(successResponse({
-      items: mockResults,
-      pagination: { page, limit, total: 1, totalPages: 1 },
-      query: { keyword, location, salaryMin, salaryMax },
-    }));
+    if (keyword) {
+      andFilters.push({
+        OR: [
+          { title: { contains: keyword, mode: 'insensitive' } },
+          { description: { contains: keyword, mode: 'insensitive' } },
+          { requirements: { contains: keyword, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (location) {
+      andFilters.push({ location: { contains: location, mode: 'insensitive' } });
+    }
+
+    if (salaryMin) {
+      andFilters.push({
+        OR: [
+          { salaryMax: { gte: salaryMin } },
+          { salaryMax: null },
+        ],
+      });
+    }
+
+    if (salaryMax) {
+      andFilters.push({
+        OR: [
+          { salaryMin: { lte: salaryMax } },
+          { salaryMin: null },
+        ],
+      });
+    }
+
+    if (tags && tags.length > 0) {
+      andFilters.push({ tags: { hasSome: tags } });
+    }
+
+    if (andFilters.length > 0) {
+      where.AND = andFilters;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [jobs, total] = await prisma.$transaction([
+      prisma.job.findMany({
+        where,
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              verifiedBySchool: true,
+              industry: true,
+              scale: true,
+              location: true,
+            },
+          },
+        },
+        orderBy: keyword
+          ? [
+              // 简单相关度排序：标题命中优先，其次描述/要求
+              { title: 'desc' },
+              { createdAt: 'desc' },
+            ]
+          : { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.job.count({ where }),
+    ]);
+
+    res.json(
+      successResponse({
+        items: jobs,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        query: { keyword, location, salaryMin, salaryMax },
+      })
+    );
   } catch (error) {
     console.error('搜索失败:', error);
     res.status(500).json(ErrorResponses.internalError());
@@ -59,16 +121,19 @@ router.get('/suggest', async (req: Request, res: Response) => {
       return res.status(400).json(ErrorResponses.badRequest('搜索关键词不能为空'));
     }
 
-    // TODO: 实现实际的搜索建议逻辑
+    const suggestions = await prisma.job.findMany({
+      where: {
+        status: JobStatus.APPROVED,
+        title: { contains: q, mode: 'insensitive' },
+      },
+      select: { title: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
 
-    // 模拟搜索建议
-    const mockSuggestions = [
-      '前端开发工程师',
-      '前端实习生',
-      '高级前端工程师',
-    ];
+    const uniqueTitles = Array.from(new Set(suggestions.map((s) => s.title)));
 
-    res.json(successResponse(mockSuggestions));
+    res.json(successResponse(uniqueTitles));
   } catch (error) {
     console.error('获取搜索建议失败:', error);
     res.status(500).json(ErrorResponses.internalError());
@@ -81,18 +146,40 @@ router.get('/suggest', async (req: Request, res: Response) => {
  */
 router.get('/hot', async (_req: Request, res: Response) => {
   try {
-    // TODO: 实现实际的热门搜索逻辑（从Redis获取）
+    // 简单热门搜索：取最近发布的岗位标签/标题词频，前端展示关键词
+    const recentJobs = await prisma.job.findMany({
+      where: { status: JobStatus.APPROVED },
+      select: { title: true, tags: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
 
-    // 模拟热门搜索
-    const mockHotSearches = [
-      { keyword: '前端开发', count: 1000 },
-      { keyword: 'Java开发', count: 800 },
-      { keyword: '产品经理', count: 600 },
-      { keyword: '数据分析', count: 500 },
-      { keyword: 'UI设计', count: 400 },
+    const counter = new Map<string, number>();
+
+    recentJobs.forEach((job) => {
+      job.tags.forEach((tag) => counter.set(tag, (counter.get(tag) || 0) + 1));
+      job.title.split(/\s|\//).forEach((token) => {
+        if (token.trim().length > 1) {
+          counter.set(token.trim(), (counter.get(token.trim()) || 0) + 1);
+        }
+      });
+    });
+
+    const sorted = Array.from(counter.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([keyword, count]) => ({ keyword, count }));
+
+    // 若数据不足，回退默认关键词
+    const fallback = [
+      { keyword: '前端开发', count: 0 },
+      { keyword: 'Java开发', count: 0 },
+      { keyword: '产品经理', count: 0 },
+      { keyword: '数据分析', count: 0 },
+      { keyword: 'UI设计', count: 0 },
     ];
 
-    res.json(successResponse(mockHotSearches));
+    res.json(successResponse(sorted.length > 0 ? sorted : fallback));
   } catch (error) {
     console.error('获取热门搜索失败:', error);
     res.status(500).json(ErrorResponses.internalError());

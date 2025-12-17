@@ -10,6 +10,9 @@ WORKDIR /app
 COPY apps/frontend ./
 
 ENV NEXT_TELEMETRY_DISABLED 1
+# Next.js 需要在构建时嵌入 NEXT_PUBLIC_* 环境变量
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # 安装依赖并构建
 RUN pnpm install && pnpm build

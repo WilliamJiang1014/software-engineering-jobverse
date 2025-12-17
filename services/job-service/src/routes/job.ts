@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { successResponse, ErrorResponses, createJobSchema, jobSearchSchema } from '@jobverse/shared';
+import { JobStatus, Prisma } from '@prisma/client';
+import { successResponse, ErrorResponses, jobSearchSchema } from '@jobverse/shared';
+import { prisma } from '../lib/prisma';
 
 const router: Router = Router();
 
@@ -16,47 +18,94 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
-    // TODO: 实现实际的岗位搜索逻辑
+    const { keyword, location, salaryMin, salaryMax, tags, companyId, page, limit } =
+      validationResult.data;
 
-    // 模拟岗位列表
-    const mockJobs = [
-      {
-        id: '1',
-        title: '前端开发工程师',
-        companyId: 'c1',
-        company: { id: 'c1', name: 'XX科技有限公司', verifiedBySchool: true },
-        location: '北京',
-        salaryMin: 15000,
-        salaryMax: 25000,
-        tags: ['React', 'TypeScript'],
-        status: 'APPROVED',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: '2',
-        title: '后端开发工程师',
-        companyId: 'c2',
-        company: { id: 'c2', name: 'YY互联网公司', verifiedBySchool: true },
-        location: '上海',
-        salaryMin: 18000,
-        salaryMax: 30000,
-        tags: ['Node.js', 'PostgreSQL'],
-        status: 'APPROVED',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ];
+    const where: Prisma.JobWhereInput = {
+      status: JobStatus.APPROVED,
+    };
 
-    res.json(successResponse({
-      items: mockJobs,
-      pagination: {
-        page: validationResult.data.page,
-        limit: validationResult.data.limit,
-        total: 2,
-        totalPages: 1,
-      },
-    }));
+    const andFilters: Prisma.JobWhereInput[] = [];
+
+    if (keyword) {
+      andFilters.push({
+        OR: [
+          { title: { contains: keyword, mode: 'insensitive' } },
+          { description: { contains: keyword, mode: 'insensitive' } },
+          { requirements: { contains: keyword, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (location) {
+      andFilters.push({ location: { contains: location, mode: 'insensitive' } });
+    }
+
+    if (salaryMin) {
+      andFilters.push({
+        OR: [
+          { salaryMax: { gte: salaryMin } },
+          { salaryMax: null },
+        ],
+      });
+    }
+
+    if (salaryMax) {
+      andFilters.push({
+        OR: [
+          { salaryMin: { lte: salaryMax } },
+          { salaryMin: null },
+        ],
+      });
+    }
+
+    if (tags && tags.length > 0) {
+      andFilters.push({ tags: { hasSome: tags } });
+    }
+
+    if (companyId) {
+      andFilters.push({ companyId });
+    }
+
+    if (andFilters.length > 0) {
+      where.AND = andFilters;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [jobs, total] = await prisma.$transaction([
+      prisma.job.findMany({
+        where,
+        include: {
+          company: {
+            select: {
+              id: true,
+              name: true,
+              verifiedBySchool: true,
+              industry: true,
+              scale: true,
+              location: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.job.count({ where }),
+    ]);
+
+    res.json(
+      successResponse({
+        items: jobs,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      })
+    );
   } catch (error) {
     console.error('获取岗位列表失败:', error);
     res.status(500).json(ErrorResponses.internalError());
@@ -70,32 +119,27 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    // TODO: 实现实际的岗位查询逻辑
-
-    const mockJob = {
-      id,
-      title: '前端开发工程师',
-      companyId: 'c1',
-      company: {
-        id: 'c1',
-        name: 'XX科技有限公司',
-        industry: '互联网/IT',
-        scale: '201-500人',
-        verifiedBySchool: true,
+    const job = await prisma.job.findUnique({
+      where: { id },
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            industry: true,
+            scale: true,
+            verifiedBySchool: true,
+            location: true,
+          },
+        },
       },
-      location: '北京',
-      salaryMin: 15000,
-      salaryMax: 25000,
-      description: '负责公司前端产品的开发和维护...',
-      requirements: '1. 熟悉 React/Vue 等前端框架\n2. 熟悉 TypeScript',
-      tags: ['React', 'TypeScript', 'Ant Design'],
-      status: 'APPROVED',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    });
 
-    res.json(successResponse(mockJob));
+    if (!job || job.status !== JobStatus.APPROVED) {
+      return res.status(404).json(ErrorResponses.notFound('岗位不存在或未上线'));
+    }
+
+    res.json(successResponse(job));
   } catch (error) {
     console.error('获取岗位详情失败:', error);
     res.status(500).json(ErrorResponses.internalError());
