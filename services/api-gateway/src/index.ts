@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
 import { authMiddleware } from './middleware/auth';
+import { optionalAuthMiddleware } from './middleware/optionalAuth';
 import { errorHandler } from './middleware/error';
 import { healthRouter } from './routes/health';
 
@@ -87,11 +88,45 @@ app.use('/api/v1/users', authMiddleware, createProxyMiddleware({
   pathRewrite: { '^/api/v1/users': '/api/v1/users' },
 }));
 
-// 代理到岗位服务
-app.use('/api/v1/jobs', createProxyMiddleware({
+// 创建岗位服务的代理中间件
+const jobProxy = createProxyMiddleware({
   target: serviceUrls.job,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/jobs': '/api/v1/jobs' },
+});
+
+// 代理到岗位服务（条件认证）
+app.use('/api/v1/jobs', (req, res, next) => {
+  // 检查是否是收藏或投递接口（POST/DELETE /api/v1/jobs/:id/bookmark 或 POST /api/v1/jobs/:id/apply）
+  const path = req.path;
+  const isBookmark = path.match(/\/[^/]+\/bookmark$/);
+  const isApply = path.match(/\/[^/]+\/apply$/);
+  
+  if ((isBookmark || isApply) && (req.method === 'POST' || req.method === 'DELETE')) {
+    // 需要认证的接口，先执行认证中间件
+    return authMiddleware(req, res, (err) => {
+      if (err) return next(err);
+      // 认证通过后，执行代理
+      jobProxy(req, res, next);
+    });
+  }
+  // 公开接口，但如果有 token 则解析并传递用户信息（用于返回收藏状态）
+  optionalAuthMiddleware(req, res, () => {
+    jobProxy(req, res, next);
+  });
+});
+
+// 代理到投递和收藏服务（需要鉴权）
+app.use('/api/v1/applications', authMiddleware, createProxyMiddleware({
+  target: serviceUrls.job,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/applications': '/api/v1/applications' },
+}));
+
+app.use('/api/v1/bookmarks', authMiddleware, createProxyMiddleware({
+  target: serviceUrls.job,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/bookmarks': '/api/v1/bookmarks' },
 }));
 
 // 代理到搜索服务
@@ -120,6 +155,13 @@ app.use('/api/v1/admin/risk', authMiddleware, createProxyMiddleware({
   target: serviceUrls.risk,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/admin/risk': '/api/v1/risk' },
+}));
+
+// 代理到风控检测服务（公开接口，岗位提交时调用）
+app.use('/api/v1/risk', createProxyMiddleware({
+  target: serviceUrls.risk,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/risk': '/api/v1/risk' },
 }));
 
 // 代理到审计服务（需要鉴权）

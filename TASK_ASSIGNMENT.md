@@ -73,29 +73,48 @@
 
 **负责模块**：审核服务、风控服务、审计日志、收藏与投递记录
 
-| 任务 | 接口/页面 | 说明 |
-|------|-----------|------|
-| 待审核列表 | `GET /api/v1/admin/review/pending` | 待审核岗位 |
-| 审核岗位 | `POST /api/v1/admin/review/jobs/:id` | 通过/拒绝，设置Verified标识 |
-| 认证管理 | `GET/POST /api/v1/admin/verified` | 企业认证管理 |
-| 敏感词检测 | `POST /api/v1/risk/check` | 岗位提交时调用 |
-| 风控规则管理 | `GET/POST /api/v1/admin/risk/rules` | 敏感词规则配置 |
-| 审计日志查询 | `GET /api/v1/admin/audit/logs` | 关键操作日志 |
-| 收藏岗位 | `POST/DELETE /api/v1/jobs/:id/bookmark` | 添加/取消收藏 |
-| 我的收藏 | `GET /api/v1/bookmarks` | 收藏列表 |
-| 我的投递 | `GET /api/v1/applications` | 投递记录 |
-| 管理端-审核 | `apps/frontend/src/pages/admin/review.tsx` | 审核页面 |
-| 管理端-统计 | `apps/frontend/src/pages/admin/stats.tsx` | 审计日志+基础统计 |
-| 学生端-收藏 | `apps/frontend/src/pages/student/bookmarks.tsx` | 对接真实数据 |
-| 学生端-投递 | `apps/frontend/src/pages/student/applications.tsx` | 对接真实数据 |
+| 任务 | 接口/页面 | 说明 | 状态 |
+|------|-----------|------|------|
+| 待审核列表 | `GET /api/v1/admin/review/pending` | 待审核岗位 | ✅ 已完成 |
+| 审核岗位 | `POST /api/v1/admin/review/jobs/:id` | 通过/拒绝，设置Verified标识 | ✅ 已完成 |
+| 认证管理 | `GET /api/v1/admin/review/companies` | 企业认证管理 | ✅ 已完成 |
+| 认证管理 | `PUT /api/v1/admin/review/companies/:id/verify` | 企业认证状态更新 | ✅ 已完成 |
+| 敏感词检测 | `POST /api/v1/risk/check` | 岗位提交时调用 | ✅ 已完成 |
+| 风控规则管理 | `GET /api/v1/admin/risk/rules` | 风控规则列表 | ✅ 已完成 |
+| 风控规则管理 | `POST /api/v1/admin/risk/rules` | 创建风控规则 | ✅ 已完成 |
+| 风控规则管理 | `PUT /api/v1/admin/risk/rules/:id` | 更新风控规则 | ✅ 已完成 |
+| 风控规则管理 | `DELETE /api/v1/admin/risk/rules/:id` | 删除风控规则 | ✅ 已完成 |
+| 审计日志查询 | `GET /api/v1/admin/audit/logs` | 关键操作日志 | ✅ 已完成 |
+| 统计数据 | `GET /api/v1/admin/audit/stats` | 平台统计数据 | ✅ 已完成 |
+| 收藏岗位 | `POST /api/v1/jobs/:id/bookmark` | 添加收藏 | ✅ 已完成 |
+| 收藏岗位 | `DELETE /api/v1/jobs/:id/bookmark` | 取消收藏 | ✅ 已完成 |
+| 我的收藏 | `GET /api/v1/bookmarks` | 收藏列表 | ✅ 已完成 |
+| 我的投递 | `GET /api/v1/applications` | 投递记录 | ✅ 已完成 |
+| 学生统计 | `GET /api/v1/applications/stats` | 学生个人统计数据 | ✅ 已完成 |
+| 投递岗位 | `POST /api/v1/jobs/:id/apply` | 学生投递岗位 | ✅ 已完成 |
+| 企业信息 | `GET /api/v1/employer/company` | 企业查看自己的公司信息 | ✅ 已完成 |
+| 管理端-工作台 | `apps/frontend/src/pages/admin/index.tsx` | 工作台+实时统计 | ✅ 已完成 |
+| 管理端-审核 | `apps/frontend/src/pages/admin/review.tsx` | 审核页面+高风险标记 | ✅ 已完成 |
+| 管理端-认证管理 | `apps/frontend/src/pages/admin/verified.tsx` | 企业认证管理 | ✅ 已完成 |
+| 管理端-统计 | `apps/frontend/src/pages/admin/stats.tsx` | 数据统计+真实数据 | ✅ 已完成 |
+| 管理端-风控规则 | `apps/frontend/src/pages/admin/risk.tsx` | 风控规则管理 | ✅ 已完成 |
+| 管理端-审计日志 | `apps/frontend/src/pages/admin/audit.tsx` | 审计日志查询 | ✅ 已完成 |
+| 学生端-工作台 | `apps/frontend/src/pages/student/index.tsx` | 求职概览+真实数据 | ✅ 已完成 |
+| 学生端-岗位搜索 | `apps/frontend/src/pages/student/jobs.tsx` | 岗位搜索+收藏+投递 | ✅ 已完成 |
+| 学生端-收藏 | `apps/frontend/src/pages/student/bookmarks.tsx` | 收藏列表 | ✅ 已完成 |
+| 学生端-投递 | `apps/frontend/src/pages/student/applications.tsx` | 投递记录 | ✅ 已完成 |
+| 企业端-公司信息 | `apps/frontend/src/pages/employer/company.tsx` | 认证状态 | ✅ 已完成 |
 
-**总计**：9个后端接口 + 4个前端页面
+**总计**：17个后端接口 + 9个前端页面
 
 **相关文件**：
 - `services/review-service/src/routes/review.ts`
 - `services/risk-service/src/routes/risk.ts`
 - `services/audit-service/src/routes/audit.ts`
 - `services/job-service/src/routes/bookmarks.ts`
+- `services/job-service/src/routes/application.ts`
+- `services/job-service/src/routes/job.ts`
+- `services/job-service/src/routes/employer.ts`
 - `apps/frontend/src/pages/admin/`
 - `apps/frontend/src/pages/student/`
 

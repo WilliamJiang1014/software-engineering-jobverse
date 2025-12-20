@@ -50,7 +50,7 @@ export interface RiskRule {
   id: string;
   ruleType: RiskRuleType;
   content: string;
-  action: 'block' | 'mark' | 'downgrade';
+  action: 'block' | 'mark';
   enabled: boolean;
   createdAt: Date;
   updatedAt: Date;

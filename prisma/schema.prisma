@@ -105,6 +105,7 @@ model Job {
   tags         String[]
   status       JobStatus @default(DRAFT)
   expiresAt    DateTime? @map("expires_at")  // 岗位有效期（BR-02 要求）
+  isHighRisk   Boolean   @default(false) @map("is_high_risk")  // 高风险标记
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
@@ -219,7 +220,7 @@ model RiskRule {
   id        String   @id @default(uuid())
   ruleType  String   @map("rule_type") // sensitive_word, duplicate_detection, content_quality
   content   String   @db.Text
-  action    String   // block, mark, downgrade
+  action    String   // block, mark
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

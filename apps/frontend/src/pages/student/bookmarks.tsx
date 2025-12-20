@@ -1,20 +1,78 @@
-import { Card, List, Tag, Space, Button, Empty } from 'antd';
-import { EnvironmentOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Card, List, Tag, Space, Button, Empty, Spin, message } from 'antd';
+import { EnvironmentOutlined, StarFilled } from '@ant-design/icons';
 import StudentLayout from '@/components/layouts/StudentLayout';
 import Head from 'next/head';
 import { Typography } from 'antd';
+import { useState, useEffect } from 'react';
+import { bookmarkApi, jobApi } from '@/lib/api';
 
 const { Title } = Typography;
 
-// 模拟收藏数据
-const mockBookmarks = [
-  { id: '1', title: '前端开发工程师', company: 'XX科技有限公司', location: '北京', salary: '15K-25K', tags: ['React', 'TypeScript'], verified: true },
-  { id: '2', title: 'Java开发工程师', company: 'AA科技', location: '杭州', salary: '20K-35K', tags: ['Java', 'Spring Boot'], verified: true },
-  { id: '3', title: 'AI算法工程师', company: 'BB人工智能', location: '北京', salary: '30K-50K', tags: ['Python', 'PyTorch'], verified: true },
-  { id: '4', title: '产品经理', company: 'ZZ创新科技', location: '深圳', salary: '20K-35K', tags: ['B端', '数据分析'], verified: false },
-];
+interface Bookmark {
+  id: string;
+  jobId: string;
+  job: {
+    id: string;
+    title: string;
+    location: string;
+    salaryMin?: number;
+    salaryMax?: number;
+    tags: string[];
+    company: {
+      id: string;
+      name: string;
+      verifiedBySchool: boolean;
+    };
+  };
+  createdAt: string;
+}
 
 export default function StudentBookmarks() {
+  const [loading, setLoading] = useState(false);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+
+  useEffect(() => {
+    fetchBookmarks();
+  }, []);
+
+  const fetchBookmarks = async () => {
+    setLoading(true);
+    try {
+      const response = await bookmarkApi.list();
+      if (response.code === 200) {
+        setBookmarks(response.data.items);
+      } else {
+        message.error(response.message || '获取收藏列表失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '获取收藏列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnbookmark = async (jobId: string) => {
+    try {
+      const response = await jobApi.unbookmark(jobId);
+      if (response.code === 200) {
+        message.success('取消收藏成功');
+        fetchBookmarks();
+      } else {
+        message.error(response.message || '取消收藏失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '取消收藏失败');
+    }
+  };
+
+  const formatSalary = (min?: number, max?: number) => {
+    if (!min && !max) return '面议';
+    if (min && max) return `${min / 1000}K-${max / 1000}K`;
+    if (min) return `${min / 1000}K+`;
+    if (max) return `≤${max / 1000}K`;
+    return '面议';
+  };
+
   return (
     <StudentLayout>
       <Head>
@@ -23,39 +81,51 @@ export default function StudentBookmarks() {
 
       <Title level={4}>我的收藏</Title>
 
-      {mockBookmarks.length === 0 ? (
-        <Empty description="暂无收藏的岗位" />
-      ) : (
-        <List
-          style={{ marginTop: 16 }}
-          dataSource={mockBookmarks}
-          renderItem={(job) => (
-            <Card hoverable style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Space direction="vertical" size={4}>
-                  <Space>
-                    <span style={{ fontSize: 16, fontWeight: 500 }}>{job.title}</span>
-                    {job.verified && <Tag color="blue">学校认证</Tag>}
+      <Spin spinning={loading}>
+        {bookmarks.length === 0 ? (
+          <Empty description="暂无收藏的岗位" />
+        ) : (
+          <List
+            style={{ marginTop: 16 }}
+            dataSource={bookmarks}
+            renderItem={(bookmark) => (
+              <Card hoverable style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Space direction="vertical" size={4}>
+                    <Space>
+                      <span style={{ fontSize: 16, fontWeight: 500 }}>{bookmark.job.title}</span>
+                      {bookmark.job.company.verifiedBySchool && <Tag color="blue">学校认证</Tag>}
+                    </Space>
+                    <Space>
+                      <span>{bookmark.job.company.name}</span>
+                      <span><EnvironmentOutlined /> {bookmark.job.location}</span>
+                      <span style={{ color: '#52c41a' }}>{formatSalary(bookmark.job.salaryMin, bookmark.job.salaryMax)}</span>
+                    </Space>
+                    <Space>
+                      {bookmark.job.tags.map(tag => <Tag key={tag}>{tag}</Tag>)}
+                    </Space>
                   </Space>
                   <Space>
-                    <span>{job.company}</span>
-                    <span><EnvironmentOutlined /> {job.location}</span>
-                    <span style={{ color: '#52c41a' }}>{job.salary}</span>
+                    <Button 
+                      icon={<StarFilled style={{ color: '#faad14' }} />} 
+                      danger
+                      onClick={() => handleUnbookmark(bookmark.jobId)}
+                    >
+                      取消收藏
+                    </Button>
+                    <Button 
+                      type="primary"
+                      onClick={() => window.location.href = `/jobs/${bookmark.jobId}`}
+                    >
+                      查看详情
+                    </Button>
                   </Space>
-                  <Space>
-                    {job.tags.map(tag => <Tag key={tag}>{tag}</Tag>)}
-                  </Space>
-                </Space>
-                <Space>
-                  <Button icon={<DeleteOutlined />} danger>取消收藏</Button>
-                  <Button type="primary">投递</Button>
-                </Space>
-              </div>
-            </Card>
-          )}
-        />
-      )}
+                </div>
+              </Card>
+            )}
+          />
+        )}
+      </Spin>
     </StudentLayout>
   );
 }
-

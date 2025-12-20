@@ -1,35 +1,68 @@
-import { Table, Tag, Card, Button, Space, Typography, Modal, message } from 'antd';
+import { Table, Tag, Card, Button, Space, Typography, Modal, message, Spin } from 'antd';
 import { SafetyCertificateOutlined, StopOutlined } from '@ant-design/icons';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import Head from 'next/head';
+import { useState, useEffect } from 'react';
 import type { ColumnsType } from 'antd/es/table';
+import { adminApi } from '@/lib/api';
 
 const { Title } = Typography;
 
 interface Company {
   id: string;
   name: string;
-  industry: string;
-  verified: boolean;
-  verifiedAt?: string;
-  contactPerson: string;
+  industry?: string;
+  scale?: string;
+  location?: string;
+  verifiedBySchool: boolean;
+  createdAt: string;
 }
 
-// 模拟数据
-const mockCompanies: Company[] = [
-  { id: '1', name: 'XX科技有限公司', industry: '互联网/IT', verified: true, verifiedAt: '2025-12-01', contactPerson: '李经理' },
-  { id: '2', name: 'YY互联网公司', industry: '互联网/IT', verified: true, verifiedAt: '2025-11-20', contactPerson: '王总' },
-  { id: '3', name: 'ZZ创新科技', industry: '人工智能', verified: false, contactPerson: '张总' },
-  { id: '4', name: 'AA金融科技', industry: '金融', verified: false, contactPerson: '刘经理' },
-];
-
 export default function AdminVerified() {
+  const [loading, setLoading] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+
+  useEffect(() => {
+    fetchCompanies();
+  }, [pagination.page, pagination.limit]);
+
+  const fetchCompanies = async () => {
+    setLoading(true);
+    try {
+      const response = await adminApi.review.getCompanies({
+        page: pagination.page,
+        limit: pagination.limit,
+      });
+      if (response.code === 200) {
+        setCompanies(response.data.items);
+        setPagination(response.data.pagination);
+      } else {
+        message.error(response.message || '获取企业列表失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '获取企业列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerify = (company: Company) => {
     Modal.confirm({
       title: '认证企业',
       content: `确定要认证「${company.name}」吗？认证后该企业发布的岗位将展示认证标识。`,
-      onOk: () => {
-        message.success('认证成功');
+      onOk: async () => {
+        try {
+          const response = await adminApi.review.verifyCompany(company.id, true);
+          if (response.code === 200) {
+            message.success('认证成功');
+            fetchCompanies();
+          } else {
+            message.error(response.message || '认证失败');
+          }
+        } catch (error: any) {
+          message.error(error.message || '认证失败');
+        }
       },
     });
   };
@@ -39,20 +72,31 @@ export default function AdminVerified() {
       title: '取消认证',
       content: `确定要取消「${company.name}」的认证吗？`,
       okType: 'danger',
-      onOk: () => {
-        message.success('已取消认证');
+      onOk: async () => {
+        try {
+          const response = await adminApi.review.verifyCompany(company.id, false);
+          if (response.code === 200) {
+            message.success('已取消认证');
+            fetchCompanies();
+          } else {
+            message.error(response.message || '取消认证失败');
+          }
+        } catch (error: any) {
+          message.error(error.message || '取消认证失败');
+        }
       },
     });
   };
 
   const columns: ColumnsType<Company> = [
     { title: '企业名称', dataIndex: 'name', key: 'name' },
-    { title: '行业', dataIndex: 'industry', key: 'industry' },
-    { title: '联系人', dataIndex: 'contactPerson', key: 'contactPerson' },
+    { title: '行业', dataIndex: 'industry', key: 'industry', render: (v) => v || '-' },
+    { title: '规模', dataIndex: 'scale', key: 'scale', render: (v) => v || '-' },
+    { title: '所在地', dataIndex: 'location', key: 'location', render: (v) => v || '-' },
     { 
       title: '认证状态', 
-      dataIndex: 'verified', 
-      key: 'verified',
+      dataIndex: 'verifiedBySchool', 
+      key: 'verifiedBySchool',
       render: (verified: boolean) => (
         verified ? (
           <Tag color="success" icon={<SafetyCertificateOutlined />}>已认证</Tag>
@@ -62,18 +106,17 @@ export default function AdminVerified() {
       )
     },
     { 
-      title: '认证时间', 
-      dataIndex: 'verifiedAt', 
-      key: 'verifiedAt',
-      render: (v) => v || '-'
+      title: '创建时间', 
+      dataIndex: 'createdAt', 
+      key: 'createdAt',
+      render: (v: string) => new Date(v).toLocaleString('zh-CN')
     },
     {
       title: '操作',
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link">查看详情</Button>
-          {record.verified ? (
+          {record.verifiedBySchool ? (
             <Button 
               type="link" 
               icon={<StopOutlined />} 
@@ -97,6 +140,9 @@ export default function AdminVerified() {
     },
   ];
 
+  const verifiedCount = companies.filter(c => c.verifiedBySchool).length;
+  const unverifiedCount = companies.filter(c => !c.verifiedBySchool).length;
+
   return (
     <AdminLayout>
       <Head>
@@ -105,21 +151,31 @@ export default function AdminVerified() {
 
       <Title level={4}>认证管理</Title>
       <div style={{ marginBottom: 16 }}>
-        <Tag color="success">已认证: {mockCompanies.filter(c => c.verified).length}</Tag>
+        <Tag color="success">已认证: {verifiedCount}</Tag>
         <Tag color="default" style={{ marginLeft: 8 }}>
-          待认证: {mockCompanies.filter(c => !c.verified).length}
+          未认证: {unverifiedCount}
         </Tag>
       </div>
       
       <Card>
-        <Table 
-          columns={columns} 
-          dataSource={mockCompanies} 
-          rowKey="id"
-          pagination={{ pageSize: 10 }}
-        />
+        <Spin spinning={loading}>
+          <Table 
+            columns={columns} 
+            dataSource={companies} 
+            rowKey="id"
+            pagination={{
+              current: pagination.page,
+              pageSize: pagination.limit,
+              total: pagination.total,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条`,
+              onChange: (page, pageSize) => {
+                setPagination({ ...pagination, page, limit: pageSize });
+              },
+            }}
+          />
+        </Spin>
       </Card>
     </AdminLayout>
   );
 }
-

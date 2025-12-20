@@ -1,13 +1,58 @@
-import { Card, Form, Input, Button, Upload, message, Divider, Typography, Tag } from 'antd';
+import { Card, Form, Input, Button, Upload, message, Divider, Typography, Tag, Spin } from 'antd';
 import { UploadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import EmployerLayout from '@/components/layouts/EmployerLayout';
 import Head from 'next/head';
+import { useState, useEffect } from 'react';
+import { employerApi } from '@/lib/api';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+interface CompanyInfo {
+  id: string;
+  name: string;
+  industry?: string;
+  scale?: string;
+  location?: string;
+  description?: string;
+  website?: string;
+  logo?: string;
+  verifiedBySchool: boolean;
+}
+
 export default function EmployerCompany() {
   const [form] = Form.useForm();
+  const [loading, setLoading] = useState(true);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+
+  useEffect(() => {
+    fetchCompanyInfo();
+  }, []);
+
+  const fetchCompanyInfo = async () => {
+    setLoading(true);
+    try {
+      const response = await employerApi.getCompany();
+      if (response.code === 200) {
+        const company = response.data;
+        setCompanyInfo(company);
+        form.setFieldsValue({
+          name: company.name,
+          industry: company.industry,
+          scale: company.scale,
+          address: company.location,
+          website: company.website,
+          description: company.description,
+        });
+      } else {
+        message.error(response.message || '获取企业信息失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '获取企业信息失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const onFinish = (values: any) => {
     console.log('更新企业信息:', values);
@@ -23,15 +68,30 @@ export default function EmployerCompany() {
       <Title level={4}>企业信息</Title>
 
       <Card style={{ marginTop: 16 }}>
-        <div style={{ marginBottom: 24 }}>
-          <Text strong>认证状态：</Text>
-          <Tag color="success" icon={<SafetyCertificateOutlined />} style={{ marginLeft: 8 }}>
-            已认证
-          </Tag>
-          <Text type="secondary" style={{ marginLeft: 8 }}>
-            您的企业已通过学校认证，发布的岗位将展示认证标识
-          </Text>
-        </div>
+        <Spin spinning={loading}>
+          <div style={{ marginBottom: 24 }}>
+            <Text strong>认证状态：</Text>
+            {companyInfo?.verifiedBySchool ? (
+              <>
+                <Tag color="success" icon={<SafetyCertificateOutlined />} style={{ marginLeft: 8 }}>
+                  已认证
+                </Tag>
+                <Text type="secondary" style={{ marginLeft: 8 }}>
+                  您的企业已通过学校认证，发布的岗位将展示认证标识
+                </Text>
+              </>
+            ) : (
+              <>
+                <Tag color="default" icon={<SafetyCertificateOutlined />} style={{ marginLeft: 8 }}>
+                  未认证
+                </Tag>
+                <Text type="secondary" style={{ marginLeft: 8 }}>
+                  您的企业尚未通过学校认证，请联系管理员进行认证
+                </Text>
+              </>
+            )}
+          </div>
+        </Spin>
 
         <Divider />
 

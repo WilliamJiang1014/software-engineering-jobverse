@@ -6,6 +6,7 @@ import { jobRouter } from './routes/job';
 import { employerRouter } from './routes/employer';
 import { companyRouter } from './routes/company';
 import { applicationRouter } from './routes/application';
+import { bookmarkRouter } from './routes/bookmarks';
 import { healthRouter } from './routes/health';
 import { errorHandler } from './middleware/error';
 
@@ -24,6 +25,7 @@ app.use('/api/v1/jobs', jobRouter);
 app.use('/api/v1/employer', employerRouter);
 app.use('/api/v1/companies', companyRouter);
 app.use('/api/v1/applications', applicationRouter);
+app.use('/api/v1/bookmarks', bookmarkRouter);
 // 注意：更新候选人状态接口在 employer 路由中，路径为 /api/v1/employer/applications/:id
 
 app.use(errorHandler);

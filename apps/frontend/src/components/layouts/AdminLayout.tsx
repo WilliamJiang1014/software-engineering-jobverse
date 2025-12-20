@@ -5,7 +5,9 @@ import {
   BarChartOutlined, 
   SafetyOutlined,
   UserOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  SecurityScanOutlined,
+  FileTextOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,6 +29,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { key: '/admin', icon: <HomeOutlined />, label: <Link href="/admin">工作台</Link> },
     { key: '/admin/review', icon: <AuditOutlined />, label: <Link href="/admin/review">岗位审核</Link> },
     { key: '/admin/verified', icon: <SafetyOutlined />, label: <Link href="/admin/verified">认证管理</Link> },
+    { key: '/admin/risk', icon: <SecurityScanOutlined />, label: <Link href="/admin/risk">风控规则</Link> },
+    { key: '/admin/audit', icon: <FileTextOutlined />, label: <Link href="/admin/audit">审计日志</Link> },
     { key: '/admin/stats', icon: <BarChartOutlined />, label: <Link href="/admin/stats">数据统计</Link> },
   ];
 

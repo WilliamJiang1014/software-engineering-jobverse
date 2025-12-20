@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { successResponse, ErrorResponses } from '@jobverse/shared';
+import { successResponse, ErrorResponses, paginationSchema } from '@jobverse/shared';
+import { prisma } from '../lib/prisma';
 
 const router: Router = Router();
 
@@ -9,32 +10,70 @@ const router: Router = Router();
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] as string;
 
     if (!userId) {
       return res.status(401).json(ErrorResponses.unauthorized());
     }
 
-    // TODO: 实现实际的投递记录查询逻辑
+    const validationResult = paginationSchema.safeParse(req.query);
+    const { page, limit } = validationResult.success 
+      ? validationResult.data 
+      : { page: 1, limit: 20 };
 
-    const mockApplications = [
-      {
-        id: 'app-1',
-        jobId: 'job-1',
-        job: {
-          id: 'job-1',
-          title: '前端开发工程师',
-          company: { id: 'c1', name: 'XX科技有限公司' },
+    const skip = (page - 1) * limit;
+
+    const [applications, total] = await Promise.all([
+      prisma.application.findMany({
+        where: { userId },
+        include: {
+          job: {
+            include: {
+              company: {
+                select: {
+                  id: true,
+                  name: true,
+                  verifiedBySchool: true,
+                },
+              },
+            },
+          },
         },
-        status: 'APPLIED',
-        appliedAt: new Date(),
-        updatedAt: new Date(),
+        orderBy: {
+          appliedAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.application.count({
+        where: { userId },
+      }),
+    ]);
+
+    const items = applications.map((app) => ({
+      id: app.id,
+      jobId: app.jobId,
+      job: {
+        id: app.job.id,
+        title: app.job.title,
+        location: app.job.location,
+        salaryMin: app.job.salaryMin,
+        salaryMax: app.job.salaryMax,
+        company: app.job.company,
       },
-    ];
+      status: app.status,
+      appliedAt: app.appliedAt,
+      updatedAt: app.updatedAt,
+    }));
 
     res.json(successResponse({
-      items: mockApplications,
-      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     }));
   } catch (error) {
     console.error('获取投递记录失败:', error);
@@ -43,44 +82,63 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
- * 获取我的收藏
- * GET /api/v1/applications/bookmarks
+ * 获取学生个人统计数据
+ * GET /api/v1/applications/stats
  */
-router.get('/bookmarks', async (req: Request, res: Response) => {
+router.get('/stats', async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] as string;
 
     if (!userId) {
       return res.status(401).json(ErrorResponses.unauthorized());
     }
 
-    // TODO: 实现实际的收藏查询逻辑
+    const [totalApplications, pendingApplications, acceptedApplications, totalBookmarks] = await Promise.all([
+      prisma.application.count({ where: { userId } }),
+      prisma.application.count({ where: { userId, status: 'APPLIED' } }),
+      prisma.application.count({ where: { userId, status: 'ACCEPTED' } }),
+      prisma.bookmark.count({ where: { userId } }),
+    ]);
 
-    const mockBookmarks = [
-      {
-        id: 'bm-1',
-        jobId: 'job-1',
+    // 获取最近5条投递记录
+    const recentApplications = await prisma.application.findMany({
+      where: { userId },
+      include: {
         job: {
-          id: 'job-1',
-          title: '前端开发工程师',
-          company: { id: 'c1', name: 'XX科技有限公司' },
-          location: '北京',
-          salaryMin: 15000,
-          salaryMax: 25000,
+          include: {
+            company: {
+              select: {
+                name: true,
+              },
+            },
+          },
         },
-        createdAt: new Date(),
       },
-    ];
+      orderBy: {
+        appliedAt: 'desc',
+      },
+      take: 5,
+    });
+
+    const recentApplicationsData = recentApplications.map((app) => ({
+      id: app.id,
+      jobTitle: app.job.title,
+      company: app.job.company.name,
+      status: app.status,
+      date: app.appliedAt.toISOString().split('T')[0],
+    }));
 
     res.json(successResponse({
-      items: mockBookmarks,
-      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      totalApplications,
+      pendingApplications,
+      acceptedApplications,
+      totalBookmarks,
+      recentApplications: recentApplicationsData,
     }));
   } catch (error) {
-    console.error('获取收藏失败:', error);
+    console.error('获取学生统计数据失败:', error);
     res.status(500).json(ErrorResponses.internalError());
   }
 });
 
 export { router as applicationRouter };
-

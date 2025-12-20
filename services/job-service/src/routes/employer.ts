@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { JobStatus, ApplicationStatus, Prisma } from '@prisma/client';
 import { successResponse, ErrorResponses, createJobSchema, updateJobSchema } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
+import axios from 'axios';
 
 const router: Router = Router();
 
@@ -12,6 +13,50 @@ const getCompanyId = async (userId: string): Promise<string | null> => {
   });
   return employerInfo?.companyId || null;
 };
+
+/**
+ * 获取企业自己的公司信息
+ * GET /api/v1/employer/company
+ */
+router.get('/company', async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) {
+      return res.status(401).json(ErrorResponses.unauthorized());
+    }
+
+    const companyId = await getCompanyId(userId);
+    if (!companyId) {
+      return res.status(403).json(ErrorResponses.forbidden('非企业用户或未绑定公司'));
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        name: true,
+        industry: true,
+        scale: true,
+        location: true,
+        description: true,
+        website: true,
+        logo: true,
+        verifiedBySchool: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!company) {
+      return res.status(404).json(ErrorResponses.notFound('公司不存在'));
+    }
+
+    res.json(successResponse(company));
+  } catch (error) {
+    console.error('获取企业信息失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
 
 /**
  * 获取企业工作台仪表盘数据
@@ -192,6 +237,28 @@ router.post('/jobs', async (req: Request, res: Response) => {
       },
     });
 
+    // 记录审计日志
+    try {
+      const auditServiceUrl = process.env.AUDIT_SERVICE_URL || 'http://audit-service:3006';
+      
+      await axios.post(
+        `${auditServiceUrl}/api/v1/audit/logs`,
+        {
+          userId,
+          action: 'JOB_CREATE',
+          resourceType: 'JOB',
+          resourceId: newJob.id,
+          details: {
+            title: newJob.title,
+            companyId,
+          },
+        },
+        { timeout: 5000 }
+      );
+    } catch (auditError: any) {
+      console.warn('记录审计日志失败:', auditError.message);
+    }
+
     res.status(201).json(successResponse(newJob, '创建成功'));
   } catch (error) {
     console.error('创建岗位失败:', error);
@@ -306,6 +373,64 @@ router.post('/jobs/:id/submit', async (req: Request, res: Response) => {
     }
     if (existingJob.companyId !== companyId) {
       return res.status(403).json(ErrorResponses.forbidden('无权操作此岗位'));
+    }
+
+    // 调用风控检测（敏感词、重复检测、内容质量）
+    try {
+      const riskServiceUrl = process.env.RISK_SERVICE_URL || 'http://risk-service:3005';
+      const contentToCheck = [
+        existingJob.title,
+        existingJob.description,
+        existingJob.requirements,
+      ].filter(Boolean).join(' ');
+
+      const riskCheckResponse = await axios.post(
+        `${riskServiceUrl}/api/v1/risk/check`,
+        { 
+          content: contentToCheck, 
+          type: 'job',
+          jobId: existingJob.id,
+          title: existingJob.title,
+          description: existingJob.description,
+          requirements: existingJob.requirements,
+        },
+        { timeout: 10000 } // 增加超时时间，因为重复检测需要查询数据库
+      );
+
+      if (riskCheckResponse.data?.code === 200 && riskCheckResponse.data?.data) {
+        const { passed, risks, suggestions, riskSummary } = riskCheckResponse.data.data;
+        
+        if (!passed) {
+          // 阻止：明确告知涉及的敏感词
+          const blockedKeywords = riskSummary?.blockedKeywords || [];
+          const errorMessage = blockedKeywords.length > 0
+            ? `您的岗位内容包含敏感词：${blockedKeywords.join('、')}，请修改后重新提交`
+            : suggestions?.join('; ') || '内容未通过风控检测，请检查岗位内容';
+          
+          return res.status(400).json(
+            ErrorResponses.badRequest(
+              '内容未通过风控检测，无法提交审核',
+              errorMessage
+            )
+          );
+        }
+
+        // 如果有标记为高风险的风险，设置高风险标记
+        if (risks && risks.length > 0) {
+          const markRisks = risks.filter((r: { action: string }) => r.action === 'mark');
+          if (markRisks.length > 0) {
+            console.log(`岗位 ${id} 提交时检测到高风险内容:`, markRisks);
+            // 设置高风险标记
+            await prisma.job.update({
+              where: { id },
+              data: { isHighRisk: true },
+            });
+          }
+        }
+      }
+    } catch (riskError: any) {
+      // 风控服务不可用时，记录日志但不阻止提交（可根据需求调整）
+      console.warn('敏感词检测服务不可用，跳过检测:', riskError.message);
     }
 
     const updatedJob = await prisma.job.update({

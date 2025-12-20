@@ -2,9 +2,10 @@ import { Layout, Menu, Avatar, Dropdown, Space, Typography } from 'antd';
 import { 
   DashboardOutlined, 
   FileTextOutlined, 
-  HeartOutlined,
+  StarOutlined,
   UserOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  SearchOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,8 +25,9 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
 
   const menuItems = [
     { key: '/student', icon: <DashboardOutlined />, label: <Link href="/student">求职概览</Link> },
+    { key: '/student/jobs', icon: <SearchOutlined />, label: <Link href="/student/jobs">岗位搜索</Link> },
     { key: '/student/applications', icon: <FileTextOutlined />, label: <Link href="/student/applications">我的投递</Link> },
-    { key: '/student/bookmarks', icon: <HeartOutlined />, label: <Link href="/student/bookmarks">我的收藏</Link> },
+    { key: '/student/bookmarks', icon: <StarOutlined />, label: <Link href="/student/bookmarks">我的收藏</Link> },
     { key: '/student/profile', icon: <UserOutlined />, label: <Link href="/student/profile">个人资料</Link> },
   ];
 

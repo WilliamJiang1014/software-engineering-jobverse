@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Layout, Typography, Tag, Space, Button, Card, Spin, message } from 'antd';
-import { ArrowLeftOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, EnvironmentOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
 import { jobApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import styles from '@/styles/Home.module.css';
 
 const { Header, Content, Footer } = Layout;
@@ -27,6 +28,7 @@ type JobDetail = {
   requirements?: string | null;
   tags?: string[];
   createdAt?: string;
+  isBookmarked?: boolean;
 };
 
 const formatSalary = (min?: number | null, max?: number | null) => {
@@ -39,9 +41,11 @@ const formatSalary = (min?: number | null, max?: number | null) => {
 export default function JobDetailPage() {
   const router = useRouter();
   const { id } = router.query;
+  const { isAuthenticated } = useAuth();
 
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [bookmarking, setBookmarking] = useState(false);
 
   const fetchJob = async (jobId: string) => {
     setLoading(true);
@@ -62,6 +66,41 @@ export default function JobDetailPage() {
       fetchJob(id);
     }
   }, [id]);
+
+  const handleBookmark = async () => {
+    if (!isAuthenticated) {
+      message.warning('请先登录');
+      router.push('/login');
+      return;
+    }
+
+    if (!job) return;
+
+    setBookmarking(true);
+    try {
+      if (job.isBookmarked) {
+        const response = await jobApi.unbookmark(job.id);
+        if (response.code === 200) {
+          message.success('取消收藏成功');
+          setJob({ ...job, isBookmarked: false });
+        } else {
+          message.error(response.message || '取消收藏失败');
+        }
+      } else {
+        const response = await jobApi.bookmark(job.id);
+        if (response.code === 200) {
+          message.success('收藏成功');
+          setJob({ ...job, isBookmarked: true });
+        } else {
+          message.error(response.message || '收藏失败');
+        }
+      }
+    } catch (error: any) {
+      message.error(error.message || '操作失败');
+    } finally {
+      setBookmarking(false);
+    }
+  };
 
   return (
     <>
@@ -114,6 +153,30 @@ export default function JobDetailPage() {
                 {(job.tags ?? []).map((tag) => (
                   <Tag key={tag}>{tag}</Tag>
                 ))}
+              </div>
+              <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+                {isAuthenticated && (
+                  <Button
+                    type={job.isBookmarked ? 'default' : 'primary'}
+                    icon={job.isBookmarked ? <StarFilled /> : <StarOutlined />}
+                    loading={bookmarking}
+                    onClick={handleBookmark}
+                  >
+                    {job.isBookmarked ? '已收藏' : '收藏'}
+                  </Button>
+                )}
+                {!isAuthenticated && (
+                  <Button
+                    type="primary"
+                    icon={<StarOutlined />}
+                    onClick={() => {
+                      message.warning('请先登录');
+                      router.push('/login');
+                    }}
+                  >
+                    收藏
+                  </Button>
+                )}
               </div>
               <div style={{ marginTop: 24 }}>
                 <Title level={4}>岗位描述</Title>

@@ -89,6 +89,7 @@ export const companyApi = {
 
 export const employerApi = {
   getDashboardStats: () => api.get('/employer/dashboard'),
+  getCompany: () => api.get('/employer/company'),
   getJobs: (params?: Record<string, unknown>) => api.get('/employer/jobs', { params }),
   createJob: (data: unknown) => api.post('/employer/jobs', data),
   getJob: (id: string) => api.get(`/employer/jobs/${id}`),
@@ -99,5 +100,37 @@ export const employerApi = {
   getCandidates: (jobId: string) => api.get(`/employer/jobs/${jobId}/candidates`),
   updateCandidateStatus: (applicationId: string, status: string) => 
     api.put(`/employer/candidates/${applicationId}/status`, { status }),
+};
+
+export const adminApi = {
+  review: {
+    getPendingJobs: (params?: Record<string, unknown>) => api.get('/admin/review/pending', { params }),
+    getJobDetail: (id: string) => api.get(`/admin/review/jobs/${id}`),
+    reviewJob: (id: string, data: { status: string; comment?: string }) => 
+      api.post(`/admin/review/jobs/${id}`, data),
+    getCompanies: (params?: Record<string, unknown>) => api.get('/admin/review/companies', { params }),
+    verifyCompany: (id: string, verified: boolean) => 
+      api.put(`/admin/review/companies/${id}/verify`, { verified }),
+  },
+  risk: {
+    getRules: (params?: Record<string, unknown>) => api.get('/admin/risk/rules', { params }),
+    createRule: (data: unknown) => api.post('/admin/risk/rules', data),
+    updateRule: (id: string, data: unknown) => api.put(`/admin/risk/rules/${id}`, data),
+    deleteRule: (id: string) => api.delete(`/admin/risk/rules/${id}`),
+  },
+  audit: {
+    getLogs: (params?: Record<string, unknown>) => api.get('/admin/audit/logs', { params }),
+    getLogDetail: (id: string) => api.get(`/admin/audit/logs/${id}`),
+    getStats: () => api.get('/admin/audit/stats'),
+  },
+};
+
+export const bookmarkApi = {
+  list: (params?: Record<string, unknown>) => api.get('/bookmarks', { params }),
+};
+
+export const applicationApi = {
+  list: (params?: Record<string, unknown>) => api.get('/applications', { params }),
+  getStats: () => api.get('/applications/stats'),
 };
 

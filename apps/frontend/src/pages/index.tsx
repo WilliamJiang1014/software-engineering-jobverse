@@ -1,9 +1,11 @@
 import Head from 'next/head';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Layout, Typography, Input, Button, Card, Row, Col, Tag, Space, Empty, Spin, message } from 'antd';
-import { SearchOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { Layout, Typography, Input, Button, Card, Row, Col, Tag, Space, Empty, Spin, message, Avatar, Dropdown } from 'antd';
+import { SearchOutlined, EnvironmentOutlined, UserOutlined, LogoutOutlined, DashboardOutlined } from '@ant-design/icons';
 import { jobApi, searchApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import type { MenuProps } from 'antd';
 import styles from '@/styles/Home.module.css';
 
 const { Header, Content, Footer } = Layout;
@@ -28,6 +30,7 @@ type HotKeyword = { keyword: string; count: number };
 
 export default function Home() {
   const router = useRouter();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,7 +69,12 @@ export default function Home() {
   const handleSearch = (value: string) => {
     const keyword = value.trim();
     if (keyword) {
-      router.push(`/search?keyword=${encodeURIComponent(keyword)}`);
+      // 如果已登录且是学生，跳转到学生端搜索页面；否则跳转到公开搜索页面
+      if (isAuthenticated && user?.role === 'STUDENT') {
+        router.push(`/student/jobs?keyword=${encodeURIComponent(keyword)}`);
+      } else {
+        router.push(`/search?keyword=${encodeURIComponent(keyword)}`);
+      }
     }
   };
 
@@ -75,7 +83,12 @@ export default function Home() {
   };
 
   const handleViewMore = () => {
-    router.push('/jobs');
+    // 如果已登录且是学生，跳转到学生端搜索页面；否则跳转到公开岗位列表
+    if (isAuthenticated && user?.role === 'STUDENT') {
+      router.push('/student/jobs');
+    } else {
+      router.push('/jobs');
+    }
   };
 
   const handleCardClick = (id: string) => {
@@ -101,8 +114,49 @@ export default function Home() {
             <Title level={3} style={{ color: '#fff', margin: 0 }}>JobVerse</Title>
           </div>
           <Space>
-            <Button type="link" style={{ color: '#fff' }} href="/login">登录</Button>
-            <Button type="primary" ghost>注册</Button>
+            {isAuthenticated ? (
+              <>
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        key: 'dashboard',
+                        icon: <DashboardOutlined />,
+                        label: user?.role === 'STUDENT' ? '学生工作台' : 
+                               user?.role === 'EMPLOYER' ? '企业工作台' : '管理后台',
+                        onClick: () => {
+                          if (user?.role === 'STUDENT') router.push('/student');
+                          else if (user?.role === 'EMPLOYER') router.push('/employer');
+                          else router.push('/admin');
+                        }
+                      },
+                      { type: 'divider' },
+                      {
+                        key: 'logout',
+                        icon: <LogoutOutlined />,
+                        label: '退出登录',
+                        danger: true,
+                        onClick: () => {
+                          logout();
+                          router.push('/');
+                        }
+                      }
+                    ]
+                  }}
+                  placement="bottomRight"
+                >
+                  <Space style={{ cursor: 'pointer', color: '#fff' }}>
+                    <Avatar icon={<UserOutlined />} size="small" />
+                    <span>{user?.name || '用户'}</span>
+                  </Space>
+                </Dropdown>
+              </>
+            ) : (
+              <>
+                <Button type="link" style={{ color: '#fff' }} href="/login">登录</Button>
+                <Button type="primary" ghost href="/register">注册</Button>
+              </>
+            )}
           </Space>
         </Header>
 
@@ -110,8 +164,15 @@ export default function Home() {
           {/* 搜索区域 */}
           <div className={styles.searchSection}>
             <Title level={2} className={styles.searchTitle}>
-              找到你的理想工作
+              {isAuthenticated ? `欢迎回来，${user?.name || '同学'}！` : '找到你的理想工作'}
             </Title>
+            {isAuthenticated && (
+              <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                {user?.role === 'STUDENT' && '登录后可以收藏岗位、投递简历，享受更多功能'}
+                {user?.role === 'EMPLOYER' && '登录后可以发布岗位、管理招聘，开始你的招聘之旅'}
+                {(user?.role === 'SCHOOL_ADMIN' || user?.role === 'PLATFORM_ADMIN') && '登录后可以管理平台、审核岗位'}
+              </Text>
+            )}
             <Search
               placeholder="搜索职位、公司..."
               allowClear

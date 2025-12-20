@@ -22,6 +22,10 @@ WORKDIR /app
 RUN mkdir -p node_modules/@jobverse && \
     cp -r packages/shared node_modules/@jobverse/shared
 
+# 复制 Prisma schema 并生成 Client
+COPY prisma ./prisma
+RUN npx prisma generate --schema=./prisma/schema.prisma
+
 COPY services/risk-service/src ./src
 COPY services/risk-service/tsconfig.json ./
 COPY services/risk-service/package.json ./
@@ -32,6 +36,9 @@ FROM node:18-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+
+# 安装 OpenSSL 3.x 供 Prisma 使用
+RUN apk add --no-cache openssl
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules

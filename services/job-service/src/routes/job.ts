@@ -72,6 +72,7 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     const skip = (page - 1) * limit;
+    const userId = req.headers['x-user-id'] as string | undefined;
 
     const [jobs, total] = await prisma.$transaction([
       prisma.job.findMany({
@@ -95,9 +96,45 @@ router.get('/', async (req: Request, res: Response) => {
       prisma.job.count({ where }),
     ]);
 
+    // 如果用户已登录，检查每个岗位是否已收藏和已投递
+    let jobsWithBookmark = jobs;
+    if (userId) {
+      const jobIds = jobs.map(job => job.id);
+      const [bookmarks, applications] = await Promise.all([
+        prisma.bookmark.findMany({
+          where: {
+            userId,
+            jobId: { in: jobIds },
+          },
+          select: { jobId: true },
+        }),
+        prisma.application.findMany({
+          where: {
+            userId,
+            jobId: { in: jobIds },
+          },
+          select: { jobId: true },
+        }),
+      ]);
+      const bookmarkedJobIds = new Set(bookmarks.map(b => b.jobId));
+      const appliedJobIds = new Set(applications.map(a => a.jobId));
+      
+      jobsWithBookmark = jobs.map(job => ({
+        ...job,
+        isBookmarked: bookmarkedJobIds.has(job.id),
+        isApplied: appliedJobIds.has(job.id),
+      }));
+    } else {
+      jobsWithBookmark = jobs.map(job => ({
+        ...job,
+        isBookmarked: false,
+        isApplied: false,
+      }));
+    }
+
     res.json(
       successResponse({
-        items: jobs,
+        items: jobsWithBookmark,
         pagination: {
           page,
           limit,
@@ -119,6 +156,8 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.headers['x-user-id'] as string | undefined;
+    
     const job = await prisma.job.findUnique({
       where: { id },
       include: {
@@ -139,7 +178,37 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json(ErrorResponses.notFound('岗位不存在或未上线'));
     }
 
-    res.json(successResponse(job));
+    // 检查用户是否已收藏该岗位和已投递
+    let isBookmarked = false;
+    let isApplied = false;
+    if (userId) {
+      const [bookmark, application] = await Promise.all([
+        prisma.bookmark.findUnique({
+          where: {
+            userId_jobId: {
+              userId,
+              jobId: id,
+            },
+          },
+        }),
+        prisma.application.findUnique({
+          where: {
+            userId_jobId: {
+              userId,
+              jobId: id,
+            },
+          },
+        }),
+      ]);
+      isBookmarked = !!bookmark;
+      isApplied = !!application;
+    }
+
+    res.json(successResponse({
+      ...job,
+      isBookmarked,
+      isApplied,
+    }));
   } catch (error) {
     console.error('获取岗位详情失败:', error);
     res.status(500).json(ErrorResponses.internalError());
@@ -207,16 +276,52 @@ router.post('/:id/apply', async (req: Request, res: Response) => {
 router.post('/:id/bookmark', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] as string;
 
     if (!userId) {
       return res.status(401).json(ErrorResponses.unauthorized());
     }
 
-    // TODO: 实现实际的收藏逻辑
+    // 检查岗位是否存在
+    const job = await prisma.job.findUnique({
+      where: { id },
+    });
 
-    res.status(201).json(successResponse({ jobId: id }, '收藏成功'));
-  } catch (error) {
+    if (!job || job.status !== JobStatus.APPROVED) {
+      return res.status(404).json(ErrorResponses.notFound('岗位不存在或不可收藏'));
+    }
+
+    // 检查是否已收藏
+    const existingBookmark = await prisma.bookmark.findUnique({
+      where: {
+        userId_jobId: {
+          userId,
+          jobId: id,
+        },
+      },
+    });
+
+    if (existingBookmark) {
+      return res.status(400).json(ErrorResponses.badRequest('您已收藏过该岗位'));
+    }
+
+    // 创建收藏记录
+    const bookmark = await prisma.bookmark.create({
+      data: {
+        userId,
+        jobId: id,
+      },
+    });
+
+    res.status(201).json(successResponse({
+      id: bookmark.id,
+      jobId: id,
+      createdAt: bookmark.createdAt,
+    }, '收藏成功'));
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(400).json(ErrorResponses.badRequest('您已收藏过该岗位'));
+    }
     console.error('收藏失败:', error);
     res.status(500).json(ErrorResponses.internalError());
   }
@@ -229,13 +334,33 @@ router.post('/:id/bookmark', async (req: Request, res: Response) => {
 router.delete('/:id/bookmark', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] as string;
 
     if (!userId) {
       return res.status(401).json(ErrorResponses.unauthorized());
     }
 
-    // TODO: 实现实际的取消收藏逻辑
+    const bookmark = await prisma.bookmark.findUnique({
+      where: {
+        userId_jobId: {
+          userId,
+          jobId: id,
+        },
+      },
+    });
+
+    if (!bookmark) {
+      return res.status(404).json(ErrorResponses.notFound('收藏记录不存在'));
+    }
+
+    await prisma.bookmark.delete({
+      where: {
+        userId_jobId: {
+          userId,
+          jobId: id,
+        },
+      },
+    });
 
     res.json(successResponse(null, '取消收藏成功'));
   } catch (error) {
