@@ -7,12 +7,13 @@
 - 用户认证服务（登录、注册、刷新Token、登出、获取用户信息）
 - 前端三端框架（学生端、企业端、管理端）
 - Docker 容器化部署
+- **企业端完整功能（岗位发布/编辑/删除、候选人筛选/简历查看、仪表盘统计）**
+- **前后端真实数据对接（企业端）**
 
 ### 🚧 待开发
-- 岗位服务（CRUD、投递、收藏）
-- 企业端功能（岗位管理、候选人管理）
-- 管理端功能（审核、认证管理）
-- 前端页面对接真实数据
+- 学生端功能（投递、收藏、个人中心）
+- 管理端功能（审核、认证管理、风控审计）
+- 搜索服务对接
 
 ---
 
@@ -43,23 +44,27 @@
 
 **负责模块**：企业岗位管理、投递申请、候选人状态管理
 
-| 任务 | 接口/页面 | 说明 |
-|------|-----------|------|
-| 企业岗位列表 | `GET /api/v1/employer/jobs` | 企业自己发布的岗位 |
-| 创建岗位 | `POST /api/v1/employer/jobs` | 含字段校验 |
-| 编辑岗位 | `PUT /api/v1/employer/jobs/:id` | 仅能编辑自己的 |
-| 提交审核 | `POST /api/v1/employer/jobs/:id/submit` | 状态变更 |
-| 投递岗位 | `POST /api/v1/jobs/:id/apply` | 学生投递 |
-| 候选人列表 | `GET /api/v1/employer/jobs/:id/candidates` | 查看某岗位的候选人 |
-| 更新候选人状态 | `PUT /api/v1/employer/candidates/:id/status` | 已查看/面试中/已录用/不合适 |
-| 企业端-岗位管理 | `apps/frontend/src/pages/employer/jobs.tsx` | 列表+创建+编辑 |
-| 企业端-候选人 | `apps/frontend/src/pages/employer/candidates.tsx` | 查看收到的投递、更新状态 |
+| 任务 | 接口/页面 | 说明 | 状态 |
+|------|-----------|------|------|
+| 企业岗位列表 | `GET /api/v1/employer/jobs` | 企业自己发布的岗位 | ✅ 已完成 |
+| 创建岗位 | `POST /api/v1/employer/jobs` | 含字段校验 | ✅ 已完成 |
+| 编辑岗位 | `PUT /api/v1/employer/jobs/:id` | 仅能编辑自己的 | ✅ 已完成 |
+| 删除岗位 | `DELETE /api/v1/employer/jobs/:id` | **需密码验证** | ✅ 已完成 |
+| 提交审核 | `POST /api/v1/employer/jobs/:id/submit` | 状态变更 | ✅ 已完成 |
+| 仪表盘统计 | `GET /api/v1/employer/dashboard` | **聚合统计数据** | ✅ 已完成 |
+| 投递岗位 | `POST /api/v1/jobs/:id/apply` | 学生投递 | 🚧 待联调 |
+| 候选人列表 | `GET /api/v1/employer/jobs/:id/candidates` | 查看某岗位的候选人 | ✅ 已完成 |
+| 全局候选人 | `GET /api/v1/employer/candidates` | **查看所有投递** | ✅ 已完成 |
+| 更新候选人状态 | `PUT /api/v1/employer/candidates/:id/status` | 已查看/面试中/已录用/不合适 | ✅ 已完成 |
+| 企业端-岗位管理 | `apps/frontend/src/pages/employer/jobs.tsx` | 列表+创建+编辑+**删除** | ✅ 已完成 |
+| 企业端-候选人 | `apps/frontend/src/pages/employer/candidates.tsx` | 列表+**筛选**+**简历详情** | ✅ 已完成 |
+| 企业端-仪表盘 | `apps/frontend/src/pages/employer/index.tsx` | **真实数据展示** | ✅ 已完成 |
 
-**总计**：7个后端接口 + 2个前端页面
+**总计**：9个后端接口 + 3个前端页面
 
 **相关文件**：
-- `services/job-service/src/routes/employer.ts`（新建）
-- `services/job-service/src/routes/applications.ts`（新建）
+- `services/job-service/src/routes/employer.ts`
+- `services/job-service/src/routes/applications.ts`
 - `apps/frontend/src/pages/employer/`
 
 ---
@@ -90,7 +95,7 @@
 - `services/review-service/src/routes/review.ts`
 - `services/risk-service/src/routes/risk.ts`
 - `services/audit-service/src/routes/audit.ts`
-- `services/job-service/src/routes/bookmarks.ts`（新建）
+- `services/job-service/src/routes/bookmarks.ts`
 - `apps/frontend/src/pages/admin/`
 - `apps/frontend/src/pages/student/`
 
