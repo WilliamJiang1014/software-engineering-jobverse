@@ -2,8 +2,8 @@ import axios from 'axios';
 
 // 创建 axios 实例
 const api = axios.create({
-  // 开发环境直接访问 user-service（3001），生产环境通过 API Gateway（3000）
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+  // 开发环境默认走 API Gateway（3000），确保能路由到所有微服务
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -13,6 +13,11 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
+    // 打印请求日志，方便调试
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    }
+
     // 从 localStorage 获取 token
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('accessToken');
@@ -80,5 +85,19 @@ export const searchApi = {
 export const companyApi = {
   get: (id: string) => api.get(`/companies/${id}`),
   jobs: (id: string) => api.get(`/companies/${id}/jobs`),
+};
+
+export const employerApi = {
+  getDashboardStats: () => api.get('/employer/dashboard'),
+  getJobs: (params?: Record<string, unknown>) => api.get('/employer/jobs', { params }),
+  createJob: (data: unknown) => api.post('/employer/jobs', data),
+  getJob: (id: string) => api.get(`/employer/jobs/${id}`),
+  updateJob: (id: string, data: unknown) => api.put(`/employer/jobs/${id}`, data),
+  deleteJob: (id: string, password: string) => api.delete(`/employer/jobs/${id}`, { data: { password } }),
+  submitJob: (id: string) => api.post(`/employer/jobs/${id}/submit`),
+  getAllCandidates: () => api.get('/employer/candidates'),
+  getCandidates: (jobId: string) => api.get(`/employer/jobs/${jobId}/candidates`),
+  updateCandidateStatus: (applicationId: string, status: string) => 
+    api.put(`/employer/candidates/${applicationId}/status`, { status }),
 };
 

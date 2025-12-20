@@ -3,6 +3,13 @@ FROM node:18-alpine AS base
 
 RUN npm install -g pnpm
 
+# Development stage
+FROM base AS dev
+WORKDIR /app
+COPY apps/frontend/package.json ./
+RUN pnpm install
+CMD ["pnpm", "dev"]
+
 FROM base AS builder
 WORKDIR /app
 

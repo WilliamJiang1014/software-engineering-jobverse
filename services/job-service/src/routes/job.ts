@@ -153,24 +153,47 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/:id/apply', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] as string;
 
     if (!userId) {
       return res.status(401).json(ErrorResponses.unauthorized());
     }
 
-    // TODO: 实现实际的投递逻辑
+    // 1. 检查岗位是否存在且已发布
+    const job = await prisma.job.findUnique({
+      where: { id },
+    });
 
-    const mockApplication = {
-      id: 'app-1',
-      jobId: id,
-      userId,
-      status: 'APPLIED',
-      appliedAt: new Date(),
-      updatedAt: new Date(),
-    };
+    if (!job || job.status !== JobStatus.APPROVED) {
+      return res.status(404).json(ErrorResponses.notFound('岗位不存在或不可投递'));
+    }
 
-    res.status(201).json(successResponse(mockApplication, '投递成功'));
+    // 2. 检查是否已投递
+    const existingApplication = await prisma.application.findUnique({
+      where: {
+        userId_jobId: {
+          userId,
+          jobId: id,
+        },
+      },
+    });
+
+    if (existingApplication) {
+      return res.status(400).json(ErrorResponses.badRequest('您已投递过该岗位'));
+    }
+
+    // 3. 创建投递记录
+    const { resume, coverLetter } = req.body;
+    const application = await prisma.application.create({
+      data: {
+        userId,
+        jobId: id,
+        resume,
+        coverLetter,
+      },
+    });
+
+    res.status(201).json(successResponse(application, '投递成功'));
   } catch (error) {
     console.error('投递失败:', error);
     res.status(500).json(ErrorResponses.internalError());

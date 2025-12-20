@@ -18,11 +18,39 @@ const PORT = process.env.API_GATEWAY_PORT || 3000;
 // 基础中间件
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+  origin: (origin, callback) => {
+    // 允许没有 origin 的请求（如 curl 或 server-to-server）
+    if (!origin) return callback(null, true);
+    
+    // 开发环境允许 localhost 和 127.0.0.1
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // 生产环境严格检查
+    if (origin === (process.env.FRONTEND_URL || 'http://localhost:8080')) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(morgan('combined'));
-app.use(express.json());
+// app.use(express.json()); // 禁用全局JSON解析，由各个微服务自行处理，避免代理请求体丢失问题
+
+// 代理请求体处理函数 - 不再需要，直接流式透传
+// const onProxyReq = (proxyReq: any, req: any, _res: any) => {
+//   if (req.body && Object.keys(req.body).length > 0) {
+//     const bodyData = JSON.stringify(req.body);
+//     // 如果是 POST/PUT/PATCH 请求，重新写入 body
+//     if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+//       proxyReq.setHeader('Content-Type', 'application/json');
+//       proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+//       proxyReq.write(bodyData);
+//     }
+//   }
+// };
 
 // 限流配置
 const limiter = rateLimit({
@@ -120,5 +148,3 @@ app.listen(PORT, () => {
   console.log(`   - 风控服务: ${serviceUrls.risk}`);
   console.log(`   - 审计服务: ${serviceUrls.audit}`);
 });
-
-

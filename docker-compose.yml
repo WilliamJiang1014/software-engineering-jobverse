@@ -200,14 +200,21 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+      target: dev
     container_name: jobverse-frontend
     ports:
       - "8080:8080"
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: pnpm dev
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_started
     restart: unless-stopped
     networks:
       - jobverse-network
