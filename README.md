@@ -104,17 +104,27 @@ docker-compose logs -f
 docker-compose logs -f api-gateway
 ```
 
-### 3. 初始化数据库（首次运行）
+### 3. 数据库初始化
+
+**数据库初始化已自动化！** 🎉
+
+在 Docker Compose 启动时，`db-init` 服务会自动：
+- ✅ 等待数据库就绪
+- ✅ 同步数据库结构（使用 `prisma db push` 或 `prisma migrate deploy`）
+- ✅ 生成 Prisma Client
+- ✅ 初始化种子数据（仅在数据库为空时）
+
+**无需手动运行初始化命令！** 首次启动时会自动完成所有初始化工作。
+
+如果需要手动重新初始化数据库：
 
 ```bash
-# 创建数据库表结构
-DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:push
+# 方式1：删除数据卷并重新启动（会清空所有数据）
+docker-compose down -v
+docker-compose up -d
 
-# 生成 Prisma Client
-DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:generate
-
-# 初始化种子数据（创建测试账号）
-DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:seed
+# 方式2：手动运行初始化脚本（在容器内）
+docker-compose exec db-init sh /app/scripts/db-init.sh
 ```
 
 ### 4. 访问应用
@@ -153,22 +163,20 @@ docker-compose down -v
 ### 快速启动（完整流程）
 
 ```bash
-# 1. 启动所有服务
+# 1. 启动所有服务（包含自动数据库初始化）
 docker-compose up -d
 
-# 2. 等待服务启动（约 10-15 秒）
-sleep 10
+# 2. 等待服务启动（约 30-60 秒，首次启动需要构建镜像和初始化数据库）
+# 可以通过以下命令查看初始化进度：
+docker-compose logs -f db-init
 
-# 3. 初始化数据库（首次运行）
-DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:push
-DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:generate
-DATABASE_URL="postgresql://admin:jobverse_password_2024@localhost:5432/jobverse" pnpm db:seed
-
-# 4. 测试登录功能
+# 3. 等待所有服务就绪后，测试登录功能
 curl -X POST http://localhost:3001/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"student@jobverse.test","password":"jobverse123"}'
 ```
+
+**注意**：首次启动时，`db-init` 服务会自动完成数据库初始化，其他服务会等待初始化完成后才启动。
 
 ## 开发进度
 
@@ -178,6 +186,7 @@ curl -X POST http://localhost:3001/api/v1/auth/login \
   - ✅ Prisma Schema 定义完成
   - ✅ 种子数据脚本完成（7个用户、3个企业、8个岗位等）
   - ✅ 数据库迁移和初始化流程完善
+  - ✅ **Docker 部署时自动初始化**（无需手动运行）
 
 - **用户认证服务**
   - ✅ 用户登录（真实数据库查询、密码验证、JWT 生成）

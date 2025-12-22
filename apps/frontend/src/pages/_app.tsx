@@ -16,7 +16,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <ConfigProvider locale={zhCN} theme={theme}>
       <AuthProvider>
-        <Component {...pageProps} />
+      <Component {...pageProps} />
       </AuthProvider>
     </ConfigProvider>
   );

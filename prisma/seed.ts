@@ -498,17 +498,17 @@ async function main() {
 
   await prisma.riskRule.create({
     data: {
-      ruleType: 'sensitive_word',
-      content: '刷单|刷信誉|兼职刷单|网络兼职',
-      action: 'mark',
-      enabled: true,
+    ruleType: 'sensitive_word',
+    content: '刷单|刷信誉|兼职刷单|网络兼职',
+    action: 'mark',
+    enabled: true,
     },
   });
 
   await prisma.riskRule.create({
     data: {
-      ruleType: 'duplicate_detection',
-      content: JSON.stringify({ similarity_threshold: 0.9, min_length: 20 }),
+    ruleType: 'duplicate_detection',
+    content: JSON.stringify({ similarity_threshold: 0.9, min_length: 20 }),
       action: 'mark',
       enabled: true,
     },

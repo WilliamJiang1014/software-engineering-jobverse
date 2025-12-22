@@ -21,7 +21,7 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     const { email, password, name, role } = validationResult.data;
-
+    
     // 检查邮箱是否已存在
     const existingUser = await prisma.user.findUnique({
       where: { email },

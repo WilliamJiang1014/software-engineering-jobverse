@@ -40,6 +40,21 @@ services:
     networks:
       - jobverse-network
 
+  # 数据库初始化服务
+  db-init:
+    build:
+      context: .
+      dockerfile: docker/init/Dockerfile
+    container_name: jobverse-db-init
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - jobverse-network
+
   # API Gateway
   api-gateway:
     build:
@@ -90,6 +105,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - jobverse-network
@@ -112,6 +129,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - jobverse-network
@@ -134,6 +153,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - jobverse-network
@@ -153,6 +174,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - jobverse-network
@@ -172,6 +195,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - jobverse-network
@@ -191,6 +216,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - jobverse-network
