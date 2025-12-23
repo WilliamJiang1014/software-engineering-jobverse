@@ -206,6 +206,124 @@ router.get('/companies', async (req: Request, res: Response) => {
 });
 
 /**
+ * 获取历史审核记录
+ * GET /api/v1/review/history
+ */
+router.get('/history', async (req: Request, res: Response) => {
+  try {
+    const userRole = req.headers['x-user-role'];
+
+    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+      return res.status(403).json(ErrorResponses.forbidden());
+    }
+
+    const validationResult = paginationSchema.safeParse(req.query);
+    const { page, limit } = validationResult.success 
+      ? validationResult.data 
+      : { page: 1, limit: 20 };
+
+    const skip = (page - 1) * limit;
+    const { status, companyId, startDate, endDate } = req.query;
+
+    // 构建查询条件
+    const where: any = {};
+
+    // 按状态筛选
+    if (status) {
+      where.status = status as ReviewStatus;
+    }
+
+    // 按企业ID筛选
+    if (companyId) {
+      where.job = {
+        companyId: companyId as string,
+      };
+    }
+
+    // 只查询已审核的记录（有 reviewedAt），并按时间范围筛选
+    where.reviewedAt = { not: null };
+    if (startDate || endDate) {
+      const reviewedAtCondition: any = { not: null };
+      if (startDate) {
+        // 手动解析日期字符串，使用本地时区，避免时区问题
+        // 格式：YYYY-MM-DD
+        const [year, month, day] = (startDate as string).split('-').map(Number);
+        const startDateTime = new Date(year, month - 1, day, 0, 0, 0, 0);
+        reviewedAtCondition.gte = startDateTime;
+      }
+      if (endDate) {
+        // 手动解析日期字符串，使用本地时区，避免时区问题
+        const [year, month, day] = (endDate as string).split('-').map(Number);
+        const endDateTime = new Date(year, month - 1, day, 23, 59, 59, 999);
+        reviewedAtCondition.lte = endDateTime;
+      }
+      where.reviewedAt = reviewedAtCondition;
+    }
+
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        include: {
+          job: {
+            include: {
+              company: {
+                select: {
+                  id: true,
+                  name: true,
+                  verifiedBySchool: true,
+                },
+              },
+            },
+          },
+          reviewer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          reviewedAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.review.count({ where }),
+    ]);
+
+    const items = reviews.map((review) => ({
+      id: review.id,
+      jobId: review.jobId,
+      job: {
+        id: review.job.id,
+        title: review.job.title,
+        company: review.job.company,
+        location: review.job.location,
+      },
+      status: review.status,
+      comment: review.comment,
+      reviewedAt: review.reviewedAt,
+      reviewer: review.reviewer,
+      createdAt: review.createdAt,
+    }));
+
+    res.json(successResponse({
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    }));
+  } catch (error) {
+    console.error('获取历史审核记录失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
+
+/**
  * 获取岗位审核详情
  * GET /api/v1/review/jobs/:id
  */

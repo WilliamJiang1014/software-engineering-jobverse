@@ -170,6 +170,7 @@ services:
     environment:
       - NODE_ENV=development
       - REVIEW_SERVICE_PORT=3004
+      - TZ=Asia/Shanghai
       - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
     depends_on:
       postgres:
@@ -212,6 +213,7 @@ services:
     environment:
       - NODE_ENV=development
       - AUDIT_SERVICE_PORT=3006
+      - TZ=Asia/Shanghai
       - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-jobverse_password_2024}@postgres:5432/${POSTGRES_DB:-jobverse}
     depends_on:
       postgres:

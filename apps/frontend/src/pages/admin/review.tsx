@@ -1,4 +1,6 @@
-import { Table, Tag, Card, Button, Space, Typography, Modal, Input, message, Spin } from 'antd';
+import { Table, Tag, Card, Button, Space, Typography, Modal, Input, message, Spin, Tabs, Select, DatePicker } from 'antd';
+import type { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 const { Text } = Typography;
 const { Paragraph } = Typography;
@@ -11,6 +13,8 @@ import { adminApi } from '@/lib/api';
 
 const { Title } = Typography;
 const { TextArea } = Input;
+const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 interface Job {
   id: string;
@@ -48,9 +52,35 @@ interface JobDetail extends Job {
   }>;
 }
 
+interface ReviewHistory {
+  id: string;
+  jobId: string;
+  job: {
+    id: string;
+    title: string;
+    company: {
+      id: string;
+      name: string;
+      verifiedBySchool: boolean;
+    };
+    location: string;
+  };
+  status: string;
+  comment?: string;
+  reviewedAt: string;
+  reviewer: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+  createdAt: string;
+}
+
 export default function AdminReview() {
+  const [activeTab, setActiveTab] = useState('pending');
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [history, setHistory] = useState<ReviewHistory[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -58,10 +88,19 @@ export default function AdminReview() {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [jobDetail, setJobDetail] = useState<JobDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [historyFilters, setHistoryFilters] = useState({
+    status: '',
+    companyId: '',
+    dateRange: null as [Dayjs, Dayjs] | null,
+  });
 
   useEffect(() => {
-    fetchPendingJobs();
-  }, [pagination.page, pagination.limit]);
+    if (activeTab === 'pending') {
+      fetchPendingJobs();
+    } else {
+      fetchHistory();
+    }
+  }, [pagination.page, pagination.limit, activeTab, historyFilters]);
 
   const fetchPendingJobs = async () => {
     setLoading(true);
@@ -155,6 +194,34 @@ export default function AdminReview() {
     }
   };
 
+  const fetchHistory = async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, unknown> = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (historyFilters.status) params.status = historyFilters.status;
+      if (historyFilters.companyId) params.companyId = historyFilters.companyId;
+      if (historyFilters.dateRange && historyFilters.dateRange[0] && historyFilters.dateRange[1]) {
+        params.startDate = historyFilters.dateRange[0].format('YYYY-MM-DD');
+        params.endDate = historyFilters.dateRange[1].format('YYYY-MM-DD');
+      }
+
+      const response = await adminApi.review.getHistory(params);
+      if (response.code === 200) {
+        setHistory(response.data.items);
+        setPagination(response.data.pagination);
+      } else {
+        message.error(response.message || '获取历史审核记录失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '获取历史审核记录失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatSalary = (min?: number, max?: number) => {
     if (!min && !max) return '面议';
     if (min && max) return `${min / 1000}K-${max / 1000}K`;
@@ -236,28 +303,136 @@ export default function AdminReview() {
       </Head>
 
       <Title level={4}>岗位审核</Title>
-      <div style={{ marginBottom: 16 }}>
-        <Tag color="warning">待审核: {pagination.total}</Tag>
-      </div>
       
       <Card>
-        <Spin spinning={loading}>
-          <Table 
-            columns={columns} 
-            dataSource={jobs}
-            rowKey="id"
-            pagination={{
-              current: pagination.page,
-              pageSize: pagination.limit,
-              total: pagination.total,
-              showSizeChanger: true,
-              showTotal: (total) => `共 ${total} 条`,
-              onChange: (page, pageSize) => {
-                setPagination({ ...pagination, page, limit: pageSize });
-              },
-            }}
-          />
-        </Spin>
+        <Tabs
+          activeKey={activeTab}
+          onChange={(key) => {
+            setActiveTab(key);
+            setPagination({ ...pagination, page: 1 });
+          }}
+          items={[
+            {
+              key: 'pending',
+              label: `待审核 (${activeTab === 'pending' ? pagination.total : '-'})`,
+              children: (
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <Tag color="warning">待审核: {pagination.total}</Tag>
+                  </div>
+                  <Spin spinning={loading}>
+                    <Table 
+                      columns={columns} 
+                      dataSource={jobs}
+                      rowKey="id"
+                      pagination={{
+                        current: pagination.page,
+                        pageSize: pagination.limit,
+                        total: pagination.total,
+                        showSizeChanger: true,
+                        showTotal: (total) => `共 ${total} 条`,
+                        onChange: (page, pageSize) => {
+                          setPagination({ ...pagination, page, limit: pageSize });
+                        },
+                      }}
+                    />
+                  </Spin>
+                </div>
+              ),
+            },
+            {
+              key: 'history',
+              label: `历史记录 (${activeTab === 'history' ? pagination.total : '-'})`,
+              children: (
+                <div>
+                  <Space style={{ marginBottom: 16 }} wrap>
+                    <Select
+                      placeholder="审核状态"
+                      style={{ width: 150 }}
+                      allowClear
+                      value={historyFilters.status || undefined}
+                      onChange={(value) => setHistoryFilters({ ...historyFilters, status: value || '' })}
+                    >
+                      <Option value="APPROVED">通过</Option>
+                      <Option value="REJECTED">驳回</Option>
+                      <Option value="RETURNED">退回</Option>
+                    </Select>
+                    <Input
+                      placeholder="企业ID"
+                      style={{ width: 200 }}
+                      value={historyFilters.companyId}
+                      onChange={(e) => setHistoryFilters({ ...historyFilters, companyId: e.target.value })}
+                      allowClear
+                    />
+                    <RangePicker
+                      value={historyFilters.dateRange}
+                      onChange={(dates) => setHistoryFilters({ ...historyFilters, dateRange: dates as [Dayjs, Dayjs] | null })}
+                      format="YYYY-MM-DD"
+                    />
+                    <Button type="primary" onClick={fetchHistory} loading={loading}>
+                      查询
+                    </Button>
+                  </Space>
+                  <Spin spinning={loading}>
+                    <Table
+                      columns={[
+                        {
+                          title: '岗位名称',
+                          key: 'jobTitle',
+                          render: (_, record) => record.job.title,
+                        },
+                        {
+                          title: '企业',
+                          key: 'company',
+                          render: (_, record) => record.job.company.name,
+                        },
+                        {
+                          title: '审核状态',
+                          dataIndex: 'status',
+                          key: 'status',
+                          render: (status: string) => (
+                            <Tag color={status === 'APPROVED' ? 'success' : status === 'REJECTED' ? 'error' : 'warning'}>
+                              {status === 'APPROVED' ? '通过' : status === 'REJECTED' ? '驳回' : '退回'}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          title: '审核人',
+                          key: 'reviewer',
+                          render: (_, record) => record.reviewer.name || record.reviewer.email,
+                        },
+                        {
+                          title: '审核时间',
+                          dataIndex: 'reviewedAt',
+                          key: 'reviewedAt',
+                          render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+                        },
+                        {
+                          title: '备注',
+                          dataIndex: 'comment',
+                          key: 'comment',
+                          render: (comment?: string) => comment || '-',
+                        },
+                      ]}
+                      dataSource={history}
+                      rowKey="id"
+                      pagination={{
+                        current: pagination.page,
+                        pageSize: pagination.limit,
+                        total: pagination.total,
+                        showSizeChanger: true,
+                        showTotal: (total) => `共 ${total} 条`,
+                        onChange: (page, pageSize) => {
+                          setPagination({ ...pagination, page, limit: pageSize });
+                        },
+                      }}
+                    />
+                  </Spin>
+                </div>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <Modal

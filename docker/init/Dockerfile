@@ -30,7 +30,8 @@ WORKDIR /app
 # 复制初始化脚本
 COPY scripts/db-init.sh ./scripts/db-init.sh
 COPY scripts/check-db.js ./scripts/check-db.js
-RUN chmod +x ./scripts/db-init.sh
+# 转换行尾符并设置执行权限
+RUN sed -i 's/\r$//' ./scripts/db-init.sh && chmod +x ./scripts/db-init.sh
 
 # 设置环境变量
 ENV DATABASE_URL=${DATABASE_URL}

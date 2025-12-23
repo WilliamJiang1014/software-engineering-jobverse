@@ -36,9 +36,12 @@ FROM node:18-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV TZ=Asia/Shanghai
 
-# 安装 OpenSSL 3.x 供 Prisma 使用
-RUN apk add --no-cache openssl
+# 安装 OpenSSL 3.x 和时区数据供 Prisma 使用
+RUN apk add --no-cache openssl tzdata && \
+    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules

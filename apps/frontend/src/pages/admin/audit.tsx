@@ -1,13 +1,16 @@
-import { Table, Card, Tag, Space, Typography, Select, Input, Button, Modal, Descriptions, message, Spin } from 'antd';
-import { SearchOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Table, Card, Tag, Space, Typography, Select, Input, Button, Modal, Descriptions, message, Spin, DatePicker } from 'antd';
+import { SearchOutlined, EyeOutlined, ReloadOutlined, DownloadOutlined, FilterOutlined } from '@ant-design/icons';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { adminApi } from '@/lib/api';
+import type { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 const { Title } = Typography;
 const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 interface AuditLog {
   id: string;
@@ -33,10 +36,17 @@ export default function AdminAudit() {
   const [filters, setFilters] = useState({
     action: '',
     resourceType: '',
+    dateRange: null as [Dayjs, Dayjs] | null,
   });
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [tempFilters, setTempFilters] = useState({
+    action: '',
+    resourceType: '',
+    dateRange: null as [Dayjs, Dayjs] | null,
+  });
 
   useEffect(() => {
     fetchLogs();
@@ -51,6 +61,10 @@ export default function AdminAudit() {
       };
       if (filters.action) params.action = filters.action;
       if (filters.resourceType) params.resourceType = filters.resourceType;
+      if (filters.dateRange && filters.dateRange[0] && filters.dateRange[1]) {
+        params.startDate = filters.dateRange[0].format('YYYY-MM-DD');
+        params.endDate = filters.dateRange[1].format('YYYY-MM-DD');
+      }
 
       const response = await adminApi.audit.getLogs(params);
       if (response.code === 200) {
@@ -64,6 +78,88 @@ export default function AdminAudit() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 验证筛选条件是否匹配
+  const validateFilters = (action: string, resourceType: string): { valid: boolean; message?: string } => {
+    if (!action || !resourceType) {
+      return { valid: true }; // 如果任一为空，则不需要验证
+    }
+
+    // 定义操作类型和资源类型的匹配关系
+    const actionResourceMap: Record<string, string> = {
+      'JOB_APPROVE': 'JOB',
+      'JOB_REJECT': 'JOB',
+      'JOB_CREATE': 'JOB',
+      'JOB_UPDATE': 'JOB',
+      'JOB_DELETE': 'JOB',
+      'COMPANY_VERIFY': 'COMPANY',
+      'COMPANY_UNVERIFY': 'COMPANY',
+      'USER_LOGIN': 'USER',
+      'USER_REGISTER': 'USER',
+      'RISK_RULE_CREATE': 'RISK_RULE',
+      'RISK_RULE_UPDATE': 'RISK_RULE',
+      'RISK_RULE_DELETE': 'RISK_RULE',
+    };
+
+    const expectedResourceType = actionResourceMap[action];
+    if (expectedResourceType && expectedResourceType !== resourceType) {
+      const actionNames: Record<string, string> = {
+        'JOB_APPROVE': '审核通过',
+        'JOB_REJECT': '审核驳回',
+        'JOB_CREATE': '创建岗位',
+        'JOB_UPDATE': '更新岗位',
+        'JOB_DELETE': '删除岗位',
+        'COMPANY_VERIFY': '认证企业',
+        'COMPANY_UNVERIFY': '取消认证',
+        'USER_LOGIN': '用户登录',
+        'USER_REGISTER': '用户注册',
+        'RISK_RULE_CREATE': '创建风控规则',
+        'RISK_RULE_UPDATE': '更新风控规则',
+        'RISK_RULE_DELETE': '删除风控规则',
+      };
+      const resourceNames: Record<string, string> = {
+        'JOB': '岗位',
+        'COMPANY': '企业',
+        'USER': '用户',
+        'RISK_RULE': '风控规则',
+      };
+      return {
+        valid: false,
+        message: `操作类型"${actionNames[action]}"与资源类型"${resourceNames[resourceType]}"不匹配，请重新选择`,
+      };
+    }
+
+    return { valid: true };
+  };
+
+  const handleOpenFilter = () => {
+    setTempFilters({ ...filters });
+    setFilterModalVisible(true);
+  };
+
+  const handleApplyFilter = () => {
+    // 验证筛选条件
+    const validation = validateFilters(tempFilters.action, tempFilters.resourceType);
+    if (!validation.valid) {
+      message.warning(validation.message || '筛选条件冲突，请重新选择');
+      return;
+    }
+
+    setFilters({ ...tempFilters });
+    setFilterModalVisible(false);
+    setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
+  };
+
+  const handleResetFilter = () => {
+    const resetFilters = {
+      action: '',
+      resourceType: '',
+      dateRange: null as [Dayjs, Dayjs] | null,
+    };
+    setTempFilters(resetFilters);
+    setFilters(resetFilters);
+    setPagination(prev => ({ ...prev, page: 1 }));
   };
 
   const handleViewDetail = async (log: AuditLog) => {
@@ -183,60 +279,47 @@ export default function AdminAudit() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>审计日志</Title>
-        <Button 
-          icon={<ReloadOutlined />} 
-          onClick={fetchLogs}
-          loading={loading}
-        >
-          刷新
-        </Button>
-      </div>
-
-      <Card>
-        <Space style={{ marginBottom: 16 }} wrap>
-          <Select
-            placeholder="操作类型"
-            style={{ width: 150 }}
-            allowClear
-            value={filters.action || undefined}
-            onChange={(value) => setFilters({ ...filters, action: value || '' })}
+        <Space>
+          <Button 
+            icon={<FilterOutlined />}
+            onClick={handleOpenFilter}
           >
-            <Option value="JOB_APPROVE">审核通过</Option>
-            <Option value="JOB_REJECT">审核驳回</Option>
-            <Option value="JOB_CREATE">创建岗位</Option>
-            <Option value="JOB_UPDATE">更新岗位</Option>
-            <Option value="JOB_DELETE">删除岗位</Option>
-            <Option value="COMPANY_VERIFY">认证企业</Option>
-            <Option value="COMPANY_UNVERIFY">取消认证</Option>
-            <Option value="USER_LOGIN">用户登录</Option>
-            <Option value="USER_REGISTER">用户注册</Option>
-            <Option value="RISK_RULE_CREATE">创建风控规则</Option>
-            <Option value="RISK_RULE_UPDATE">更新风控规则</Option>
-            <Option value="RISK_RULE_DELETE">删除风控规则</Option>
-          </Select>
-
-          <Select
-            placeholder="资源类型"
-            style={{ width: 150 }}
-            allowClear
-            value={filters.resourceType || undefined}
-            onChange={(value) => setFilters({ ...filters, resourceType: value || '' })}
+            筛选条件
+            {(filters.action || filters.resourceType || filters.dateRange) && (
+              <Tag color="blue" style={{ marginLeft: 8 }}>已筛选</Tag>
+            )}
+          </Button>
+          <Button 
+            icon={<DownloadOutlined />}
+            onClick={async () => {
+              try {
+                const params: Record<string, unknown> = {};
+                if (filters.action) params.action = filters.action;
+                if (filters.resourceType) params.resourceType = filters.resourceType;
+                if (filters.dateRange && filters.dateRange[0] && filters.dateRange[1]) {
+                  params.startDate = filters.dateRange[0].format('YYYY-MM-DD');
+                  params.endDate = filters.dateRange[1].format('YYYY-MM-DD');
+                }
+                await adminApi.audit.exportLogs(params);
+                message.success('导出成功');
+              } catch (error: any) {
+                message.error(error.message || '导出失败');
+              }
+            }}
           >
-            <Option value="JOB">岗位</Option>
-            <Option value="COMPANY">企业</Option>
-            <Option value="USER">用户</Option>
-            <Option value="RISK_RULE">风控规则</Option>
-          </Select>
-
-          <Button
-            type="primary"
-            icon={<SearchOutlined />}
+            导出 CSV
+          </Button>
+          <Button 
+            icon={<ReloadOutlined />} 
             onClick={fetchLogs}
             loading={loading}
           >
-            查询
+            刷新
           </Button>
         </Space>
+      </div>
+
+      <Card>
 
         <Spin spinning={loading}>
           <Table
@@ -256,6 +339,127 @@ export default function AdminAudit() {
           />
         </Spin>
       </Card>
+
+      {/* 筛选条件弹窗 */}
+      <Modal
+        title="筛选条件"
+        open={filterModalVisible}
+        onOk={handleApplyFilter}
+        onCancel={() => {
+          setFilterModalVisible(false);
+          setTempFilters({ ...filters });
+        }}
+        okText="应用筛选"
+        cancelText="取消"
+        width={600}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>操作类型</div>
+            <Select
+              placeholder="请选择操作类型"
+              style={{ width: '100%' }}
+              allowClear
+              value={tempFilters.action || undefined}
+              onChange={(value) => {
+                const newFilters = { ...tempFilters, action: value || '' };
+                // 如果选择了操作类型，自动清空不匹配的资源类型
+                if (value) {
+                  const actionResourceMap: Record<string, string> = {
+                    'JOB_APPROVE': 'JOB',
+                    'JOB_REJECT': 'JOB',
+                    'JOB_CREATE': 'JOB',
+                    'JOB_UPDATE': 'JOB',
+                    'JOB_DELETE': 'JOB',
+                    'COMPANY_VERIFY': 'COMPANY',
+                    'COMPANY_UNVERIFY': 'COMPANY',
+                    'USER_LOGIN': 'USER',
+                    'USER_REGISTER': 'USER',
+                    'RISK_RULE_CREATE': 'RISK_RULE',
+                    'RISK_RULE_UPDATE': 'RISK_RULE',
+                    'RISK_RULE_DELETE': 'RISK_RULE',
+                  };
+                  const expectedResourceType = actionResourceMap[value];
+                  if (newFilters.resourceType && newFilters.resourceType !== expectedResourceType) {
+                    newFilters.resourceType = '';
+                  }
+                }
+                setTempFilters(newFilters);
+              }}
+            >
+              <Option value="JOB_APPROVE">审核通过</Option>
+              <Option value="JOB_REJECT">审核驳回</Option>
+              <Option value="JOB_CREATE">创建岗位</Option>
+              <Option value="JOB_UPDATE">更新岗位</Option>
+              <Option value="JOB_DELETE">删除岗位</Option>
+              <Option value="COMPANY_VERIFY">认证企业</Option>
+              <Option value="COMPANY_UNVERIFY">取消认证</Option>
+              <Option value="USER_LOGIN">用户登录</Option>
+              <Option value="USER_REGISTER">用户注册</Option>
+              <Option value="RISK_RULE_CREATE">创建风控规则</Option>
+              <Option value="RISK_RULE_UPDATE">更新风控规则</Option>
+              <Option value="RISK_RULE_DELETE">删除风控规则</Option>
+            </Select>
+          </div>
+
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>资源类型</div>
+            <Select
+              placeholder="请选择资源类型"
+              style={{ width: '100%' }}
+              allowClear
+              value={tempFilters.resourceType || undefined}
+              onChange={(value) => {
+                const newFilters = { ...tempFilters, resourceType: value || '' };
+                // 如果选择了资源类型，自动清空不匹配的操作类型
+                if (value) {
+                  const resourceActionMap: Record<string, string[]> = {
+                    'JOB': ['JOB_APPROVE', 'JOB_REJECT', 'JOB_CREATE', 'JOB_UPDATE', 'JOB_DELETE'],
+                    'COMPANY': ['COMPANY_VERIFY', 'COMPANY_UNVERIFY'],
+                    'USER': ['USER_LOGIN', 'USER_REGISTER'],
+                    'RISK_RULE': ['RISK_RULE_CREATE', 'RISK_RULE_UPDATE', 'RISK_RULE_DELETE'],
+                  };
+                  const allowedActions = resourceActionMap[value];
+                  if (newFilters.action && !allowedActions.includes(newFilters.action)) {
+                    newFilters.action = '';
+                  }
+                }
+                setTempFilters(newFilters);
+              }}
+            >
+              <Option value="JOB">岗位</Option>
+              <Option value="COMPANY">企业</Option>
+              <Option value="USER">用户</Option>
+              <Option value="RISK_RULE">风控规则</Option>
+            </Select>
+            {tempFilters.action && tempFilters.resourceType && (() => {
+              const validation = validateFilters(tempFilters.action, tempFilters.resourceType);
+              return !validation.valid ? (
+                <div style={{ marginTop: 8, color: '#ff4d4f', fontSize: '12px' }}>
+                  {validation.message}
+                </div>
+              ) : null;
+            })()}
+          </div>
+
+          <div>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>时间范围</div>
+            <RangePicker
+              style={{ width: '100%' }}
+              value={tempFilters.dateRange}
+              onChange={(dates) => setTempFilters({ ...tempFilters, dateRange: dates as [Dayjs, Dayjs] | null })}
+              format="YYYY-MM-DD"
+              placeholder={['开始日期', '结束日期']}
+            />
+          </div>
+
+          <div>
+            <Button onClick={handleResetFilter} style={{ width: '100%' }}>
+              重置筛选条件
+            </Button>
+          </div>
+        </Space>
+      </Modal>
 
       <Modal
         title="审计日志详情"

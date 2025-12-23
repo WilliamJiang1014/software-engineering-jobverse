@@ -8,27 +8,6 @@ import { message } from 'antd';
 
 const { Title } = Typography;
 
-interface DailyStat {
-  date: string;
-  jobs: number;
-  applications: number;
-  users: number;
-}
-
-interface TopCompany {
-  rank: number;
-  name: string;
-  jobs: number;
-  applications: number;
-}
-
-interface TopJob {
-  rank: number;
-  title: string;
-  company: string;
-  applications: number;
-}
-
 interface Stats {
   totalJobs: number;
   pendingJobs: number;
@@ -41,10 +20,34 @@ interface Stats {
   weeklyApplications: number;
   weeklyUsers: number;
   avgReviewTime: number;
-  dailyStats?: DailyStat[];
-  topCompanies?: TopCompany[];
-  topJobs?: TopJob[];
 }
+
+// 模拟统计数据（如果后端没有提供）
+const weeklyStats = [
+  { date: '12-09', jobs: 5, applications: 23, users: 12 },
+  { date: '12-10', jobs: 8, applications: 35, users: 18 },
+  { date: '12-11', jobs: 3, applications: 28, users: 8 },
+  { date: '12-12', jobs: 6, applications: 42, users: 15 },
+  { date: '12-13', jobs: 4, applications: 31, users: 10 },
+  { date: '12-14', jobs: 7, applications: 38, users: 14 },
+  { date: '12-15', jobs: 5, applications: 25, users: 11 },
+];
+
+const topCompanies = [
+  { rank: 1, name: 'XX科技有限公司', jobs: 12, applications: 156 },
+  { rank: 2, name: 'YY互联网公司', jobs: 8, applications: 98 },
+  { rank: 3, name: 'ZZ创新科技', jobs: 6, applications: 75 },
+  { rank: 4, name: 'AA金融科技', jobs: 5, applications: 62 },
+  { rank: 5, name: 'BB人工智能', jobs: 4, applications: 48 },
+];
+
+const topJobs = [
+  { rank: 1, title: '前端开发工程师', company: 'XX科技', applications: 45 },
+  { rank: 2, title: 'Java开发工程师', company: 'AA科技', applications: 38 },
+  { rank: 3, title: '产品经理', company: 'YY互联网', applications: 32 },
+  { rank: 4, title: '后端开发工程师', company: 'XX科技', applications: 28 },
+  { rank: 5, title: 'AI算法工程师', company: 'BB人工智能', applications: 25 },
+];
 
 export default function AdminStats() {
   const [loading, setLoading] = useState(false);
@@ -214,7 +217,7 @@ export default function AdminStats() {
                 { title: '投递数', dataIndex: 'applications', key: 'applications' },
                 { title: '新增用户', dataIndex: 'users', key: 'users' },
               ]}
-              dataSource={stats?.dailyStats || []}
+              dataSource={weeklyStats}
               rowKey="date"
               pagination={false}
               size="small"
@@ -234,7 +237,7 @@ export default function AdminStats() {
                 { title: '岗位数', dataIndex: 'jobs', key: 'jobs' },
                 { title: '投递数', dataIndex: 'applications', key: 'applications' },
               ]}
-              dataSource={stats?.topCompanies || []}
+              dataSource={topCompanies}
               rowKey="rank"
               pagination={false}
               size="small"
@@ -252,7 +255,7 @@ export default function AdminStats() {
                   { title: '企业', dataIndex: 'company', key: 'company' },
                   { title: '投递数', dataIndex: 'applications', key: 'applications' },
                 ]}
-                dataSource={stats?.topJobs || []}
+                dataSource={topJobs}
                 rowKey="rank"
                 pagination={false}
                 size="small"

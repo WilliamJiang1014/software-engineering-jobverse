@@ -111,6 +111,7 @@ export const adminApi = {
     getCompanies: (params?: Record<string, unknown>) => api.get('/admin/review/companies', { params }),
     verifyCompany: (id: string, verified: boolean) => 
       api.put(`/admin/review/companies/${id}/verify`, { verified }),
+    getHistory: (params?: Record<string, unknown>) => api.get('/admin/review/history', { params }),
   },
   risk: {
     getRules: (params?: Record<string, unknown>) => api.get('/admin/risk/rules', { params }),
@@ -122,6 +123,38 @@ export const adminApi = {
     getLogs: (params?: Record<string, unknown>) => api.get('/admin/audit/logs', { params }),
     getLogDetail: (id: string) => api.get(`/admin/audit/logs/${id}`),
     getStats: () => api.get('/admin/audit/stats'),
+    exportLogs: async (params?: Record<string, unknown>) => {
+      const queryString = new URLSearchParams(params as Record<string, string>).toString();
+      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+      const url = `${baseURL}/admin/audit/logs/export${queryString ? `?${queryString}` : ''}`;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+      
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || '导出失败');
+        }
+        
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('导出失败:', error);
+        throw error;
+      }
+    },
   },
 };
 
@@ -131,6 +164,5 @@ export const bookmarkApi = {
 
 export const applicationApi = {
   list: (params?: Record<string, unknown>) => api.get('/applications', { params }),
-  getStats: () => api.get('/applications/stats'),
 };
 
