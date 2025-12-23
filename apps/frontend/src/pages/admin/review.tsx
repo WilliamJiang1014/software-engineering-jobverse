@@ -93,14 +93,34 @@ export default function AdminReview() {
     companyId: '',
     dateRange: null as [Dayjs, Dayjs] | null,
   });
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'pending') {
       fetchPendingJobs();
     } else {
       fetchHistory();
+      // 加载企业列表用于筛选
+      if (companies.length === 0) {
+        fetchCompanies();
+      }
     }
   }, [pagination.page, pagination.limit, activeTab, historyFilters]);
+
+  const fetchCompanies = async () => {
+    setCompaniesLoading(true);
+    try {
+      const response = await adminApi.review.getCompanies({ page: 1, limit: 100 });
+      if (response.code === 200) {
+        setCompanies(response.data.items.map((c: any) => ({ id: c.id, name: c.name })));
+      }
+    } catch (error) {
+      console.error('获取企业列表失败:', error);
+    } finally {
+      setCompaniesLoading(false);
+    }
+  };
 
   const fetchPendingJobs = async () => {
     setLoading(true);
@@ -355,14 +375,19 @@ export default function AdminReview() {
                     >
                       <Option value="APPROVED">通过</Option>
                       <Option value="REJECTED">驳回</Option>
-                      <Option value="RETURNED">退回</Option>
                     </Select>
-                    <Input
-                      placeholder="企业ID"
+                    <Select
+                      placeholder="选择企业"
                       style={{ width: 200 }}
-                      value={historyFilters.companyId}
-                      onChange={(e) => setHistoryFilters({ ...historyFilters, companyId: e.target.value })}
                       allowClear
+                      showSearch
+                      loading={companiesLoading}
+                      value={historyFilters.companyId || undefined}
+                      onChange={(value) => setHistoryFilters({ ...historyFilters, companyId: value || '' })}
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                      options={companies.map(c => ({ value: c.id, label: c.name }))}
                     />
                     <RangePicker
                       value={historyFilters.dateRange}
