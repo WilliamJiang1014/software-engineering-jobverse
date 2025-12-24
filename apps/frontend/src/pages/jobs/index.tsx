@@ -1,10 +1,12 @@
 import Head from 'next/head';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Layout, Typography, Button, Card, Row, Col, Tag, Space, Empty, Spin, message } from 'antd';
-import { ArrowLeftOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { Layout, Typography, Button, Card, Row, Col, Tag, Space, Empty, Spin, message, Avatar, Dropdown } from 'antd';
+import { ArrowLeftOutlined, EnvironmentOutlined, UserOutlined, LogoutOutlined, DashboardOutlined } from '@ant-design/icons';
 import { jobApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import styles from '@/styles/Home.module.css';
+import type { MenuProps } from 'antd';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -25,6 +27,7 @@ type JobCard = {
 
 export default function JobsPage() {
   const router = useRouter();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,6 +71,31 @@ export default function JobsPage() {
     router.push('/');
   };
 
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'dashboard',
+      icon: <DashboardOutlined />,
+      label: user?.role === 'STUDENT' ? '学生工作台' :
+             user?.role === 'EMPLOYER' ? '企业工作台' : '管理后台',
+      onClick: () => {
+        if (user?.role === 'STUDENT') router.push('/student');
+        else if (user?.role === 'EMPLOYER') router.push('/employer');
+        else router.push('/admin');
+      }
+    },
+    { type: 'divider' },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      danger: true,
+      onClick: () => {
+        logout();
+        router.push('/');
+      }
+    }
+  ];
+
   useEffect(() => {
     fetchJobs(1);
   }, []);
@@ -86,8 +114,19 @@ export default function JobsPage() {
             <Title level={3} style={{ color: '#fff', margin: 0 }}>JobVerse</Title>
           </div>
           <Space>
-            <Button type="link" style={{ color: '#fff' }} href="/login">登录</Button>
-            <Button type="primary" ghost>注册</Button>
+            {isAuthenticated ? (
+              <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+                <Space style={{ cursor: 'pointer', color: '#fff' }}>
+                  <Avatar icon={<UserOutlined />} size="small" />
+                  <span>{user?.name || '用户'}</span>
+                </Space>
+              </Dropdown>
+            ) : (
+              <>
+                <Button type="link" style={{ color: '#fff' }} href="/login">登录</Button>
+                <Button type="primary" ghost href="/register">注册</Button>
+              </>
+            )}
           </Space>
         </Header>
 

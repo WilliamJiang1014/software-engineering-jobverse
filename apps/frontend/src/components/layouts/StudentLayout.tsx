@@ -1,4 +1,4 @@
-import { Layout, Menu, Avatar, Dropdown, Space, Typography } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography, Button } from 'antd';
 import { 
   DashboardOutlined, 
   FileTextOutlined, 
@@ -61,12 +61,19 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
           </Link>
           <Text style={{ color: '#1890ff', marginLeft: '12px', fontSize: '12px' }}>学生端</Text>
         </div>
-        <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
-          <Space style={{ cursor: 'pointer', color: '#fff' }}>
-            <Avatar icon={<UserOutlined />} />
-            <span>{user?.name || '用户'}</span>
-          </Space>
-        </Dropdown>
+        <Space>
+          <Link href="/">
+            <Button type="link" style={{ color: '#fff' }}>
+              首页
+            </Button>
+          </Link>
+          <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
+            <Space style={{ cursor: 'pointer', color: '#fff' }}>
+              <Avatar icon={<UserOutlined />} />
+              <span>{user?.name || '用户'}</span>
+            </Space>
+          </Dropdown>
+        </Space>
       </Header>
       <Layout>
         <Sider width={200} style={{ background: '#fff' }}>
@@ -92,4 +99,3 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
     </Layout>
   );
 }
-

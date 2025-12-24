@@ -18,7 +18,7 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
-    const { keyword, location, salaryMin, salaryMax, tags, companyId, page, limit } =
+    const { keyword, location, salaryMin, salaryMax, tags, companyId, sortBy, page, limit } =
       validationResult.data;
 
     const where: Prisma.JobWhereInput = {
@@ -74,6 +74,13 @@ router.get('/', async (req: Request, res: Response) => {
     const skip = (page - 1) * limit;
     const userId = req.headers['x-user-id'] as string | undefined;
 
+    const orderBy: Prisma.JobOrderByWithRelationInput | Prisma.JobOrderByWithRelationInput[] =
+      sortBy === 'salary'
+        ? [{ salaryMax: 'desc' }, { salaryMin: 'desc' }, { createdAt: 'desc' }]
+        : sortBy === 'time'
+        ? { createdAt: 'desc' }
+        : { createdAt: 'desc' };
+
     const [jobs, total] = await prisma.$transaction([
       prisma.job.findMany({
         where,
@@ -89,7 +96,7 @@ router.get('/', async (req: Request, res: Response) => {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),
@@ -370,4 +377,3 @@ router.delete('/:id/bookmark', async (req: Request, res: Response) => {
 });
 
 export { router as jobRouter };
-

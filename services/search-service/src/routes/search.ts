@@ -18,7 +18,8 @@ router.get('/jobs', async (req: Request, res: Response) => {
       );
     }
 
-    const { keyword, location, salaryMin, salaryMax, tags, page, limit } = validationResult.data;
+    const { keyword, location, salaryMin, salaryMax, tags, sortBy, page, limit } =
+      validationResult.data;
 
     const where: Prisma.JobWhereInput = {
       status: JobStatus.APPROVED,
@@ -68,6 +69,15 @@ router.get('/jobs', async (req: Request, res: Response) => {
 
     const skip = (page - 1) * limit;
 
+    const orderBy: Prisma.JobOrderByWithRelationInput | Prisma.JobOrderByWithRelationInput[] =
+      sortBy === 'salary'
+        ? [{ salaryMax: 'desc' }, { salaryMin: 'desc' }, { createdAt: 'desc' }]
+        : sortBy === 'time'
+        ? { createdAt: 'desc' }
+        : keyword
+        ? [{ title: 'desc' }, { createdAt: 'desc' }]
+        : { createdAt: 'desc' };
+
     const [jobs, total] = await prisma.$transaction([
       prisma.job.findMany({
         where,
@@ -83,13 +93,7 @@ router.get('/jobs', async (req: Request, res: Response) => {
             },
           },
         },
-        orderBy: keyword
-          ? [
-              // 简单相关度排序：标题命中优先，其次描述/要求
-              { title: 'desc' },
-              { createdAt: 'desc' },
-            ]
-          : { createdAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),
@@ -100,7 +104,7 @@ router.get('/jobs', async (req: Request, res: Response) => {
       successResponse({
         items: jobs,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-        query: { keyword, location, salaryMin, salaryMax },
+        query: { keyword, location, salaryMin, salaryMax, sortBy },
       })
     );
   } catch (error) {
@@ -121,17 +125,37 @@ router.get('/suggest', async (req: Request, res: Response) => {
       return res.status(400).json(ErrorResponses.badRequest('搜索关键词不能为空'));
     }
 
+    const query = q.trim();
     const suggestions = await prisma.job.findMany({
       where: {
         status: JobStatus.APPROVED,
-        title: { contains: q, mode: 'insensitive' },
+        title: { contains: query, mode: 'insensitive' },
       },
       select: { title: true },
       orderBy: { createdAt: 'desc' },
       take: 5,
     });
 
-    const uniqueTitles = Array.from(new Set(suggestions.map((s) => s.title)));
+    let titles = suggestions.map((s) => s.title);
+    if (titles.length < 5) {
+      const tokens = query.split(/[\s/_-]+/).filter((token) => token.length > 1);
+      if (tokens.length > 0) {
+        const loose = await prisma.job.findMany({
+          where: {
+            status: JobStatus.APPROVED,
+            OR: tokens.map((token) => ({
+              title: { contains: token, mode: 'insensitive' },
+            })),
+          },
+          select: { title: true },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        });
+        titles = titles.concat(loose.map((item) => item.title));
+      }
+    }
+
+    const uniqueTitles = Array.from(new Set(titles)).slice(0, 5);
 
     res.json(successResponse(uniqueTitles));
   } catch (error) {
@@ -187,4 +211,3 @@ router.get('/hot', async (_req: Request, res: Response) => {
 });
 
 export { router as searchRouter };
-

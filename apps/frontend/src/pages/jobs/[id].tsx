@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Layout, Typography, Tag, Space, Button, Card, Spin, message } from 'antd';
-import { ArrowLeftOutlined, EnvironmentOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
+import { Layout, Typography, Tag, Space, Button, Card, Spin, message, Avatar, Dropdown } from 'antd';
+import { ArrowLeftOutlined, EnvironmentOutlined, StarOutlined, StarFilled, UserOutlined, LogoutOutlined, DashboardOutlined } from '@ant-design/icons';
 import { jobApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import styles from '@/styles/Home.module.css';
+import type { MenuProps } from 'antd';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -29,6 +30,7 @@ type JobDetail = {
   tags?: string[];
   createdAt?: string;
   isBookmarked?: boolean;
+  isApplied?: boolean;
 };
 
 const formatSalary = (min?: number | null, max?: number | null) => {
@@ -41,11 +43,12 @@ const formatSalary = (min?: number | null, max?: number | null) => {
 export default function JobDetailPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
+  const [applying, setApplying] = useState(false);
 
   const fetchJob = async (jobId: string) => {
     setLoading(true);
@@ -102,6 +105,62 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleApply = async () => {
+    if (!isAuthenticated) {
+      message.warning('请先登录');
+      router.push('/login');
+      return;
+    }
+
+    if (user?.role !== 'STUDENT') {
+      message.warning('只有学生账号可以投递');
+      return;
+    }
+
+    if (!job) return;
+    if (job.isApplied) return;
+
+    setApplying(true);
+    try {
+      const response = await jobApi.apply(job.id);
+      if (response.code === 200) {
+        message.success('投递成功');
+        setJob({ ...job, isApplied: true });
+      } else {
+        message.error(response.message || '投递失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '投递失败');
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'dashboard',
+      icon: <DashboardOutlined />,
+      label: user?.role === 'STUDENT' ? '学生工作台' :
+             user?.role === 'EMPLOYER' ? '企业工作台' : '管理后台',
+      onClick: () => {
+        if (user?.role === 'STUDENT') router.push('/student');
+        else if (user?.role === 'EMPLOYER') router.push('/employer');
+        else router.push('/admin');
+      }
+    },
+    { type: 'divider' },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      danger: true,
+      onClick: () => {
+        logout();
+        router.push('/');
+      }
+    }
+  ];
+
   return (
     <>
       <Head>
@@ -113,8 +172,19 @@ export default function JobDetailPage() {
             <Title level={3} style={{ color: '#fff', margin: 0 }}>JobVerse</Title>
           </div>
           <Space>
-            <Button type="link" style={{ color: '#fff' }} href="/">首页</Button>
-            <Button type="link" style={{ color: '#fff' }} href="/login">登录</Button>
+            {isAuthenticated ? (
+              <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+                <Space style={{ cursor: 'pointer', color: '#fff' }}>
+                  <Avatar icon={<UserOutlined />} size="small" />
+                  <span>{user?.name || '用户'}</span>
+                </Space>
+              </Dropdown>
+            ) : (
+              <>
+                <Button type="link" style={{ color: '#fff' }} href="/">首页</Button>
+                <Button type="link" style={{ color: '#fff' }} href="/login">登录</Button>
+              </>
+            )}
           </Space>
         </Header>
 
@@ -155,6 +225,16 @@ export default function JobDetailPage() {
                 ))}
               </div>
               <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+                {isAuthenticated && user?.role === 'STUDENT' && (
+                  <Button
+                    type="primary"
+                    loading={applying}
+                    onClick={handleApply}
+                    disabled={job.isApplied}
+                  >
+                    {job.isApplied ? '已投递' : '立即投递'}
+                  </Button>
+                )}
                 {isAuthenticated && (
                   <Button
                     type={job.isBookmarked ? 'default' : 'primary'}
@@ -166,16 +246,20 @@ export default function JobDetailPage() {
                   </Button>
                 )}
                 {!isAuthenticated && (
-                  <Button
-                    type="primary"
-                    icon={<StarOutlined />}
-                    onClick={() => {
-                      message.warning('请先登录');
-                      router.push('/login');
-                    }}
-                  >
-                    收藏
-                  </Button>
+                  <>
+                    <Button type="primary" onClick={handleApply}>
+                      立即投递
+                    </Button>
+                    <Button
+                      icon={<StarOutlined />}
+                      onClick={() => {
+                        message.warning('请先登录');
+                        router.push('/login');
+                      }}
+                    >
+                      收藏
+                    </Button>
+                  </>
                 )}
               </div>
               <div style={{ marginTop: 24 }}>
