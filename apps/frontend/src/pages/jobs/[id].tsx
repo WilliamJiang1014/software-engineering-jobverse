@@ -3,9 +3,10 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Layout, Typography, Tag, Space, Button, Card, Spin, message, Avatar, Dropdown } from 'antd';
 import { ArrowLeftOutlined, EnvironmentOutlined, StarOutlined, StarFilled, UserOutlined, LogoutOutlined, DashboardOutlined } from '@ant-design/icons';
+import Link from 'next/link';
 import { jobApi } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
 import styles from '@/styles/Home.module.css';
+import { useAuth } from '@/contexts/AuthContext';
 import type { MenuProps } from 'antd';
 
 const { Header, Content, Footer } = Layout;
@@ -14,6 +15,12 @@ const { Title, Text, Paragraph } = Typography;
 type JobDetail = {
   id: string;
   title: string;
+  location: string;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  description?: string | null;
+  requirements?: string | null;
+  tags?: string[];
   company?: {
     id: string;
     name: string;
@@ -22,22 +29,9 @@ type JobDetail = {
     scale?: string | null;
     location?: string | null;
   };
-  location: string;
-  salaryMin?: number | null;
-  salaryMax?: number | null;
-  description?: string | null;
-  requirements?: string | null;
-  tags?: string[];
   createdAt?: string;
   isBookmarked?: boolean;
   isApplied?: boolean;
-};
-
-const formatSalary = (min?: number | null, max?: number | null) => {
-  if (!min && !max) return '薪资面议';
-  if (min && max) return `${Math.round(min / 1000)}K-${Math.round(max / 1000)}K`;
-  if (min) return `${Math.round(min / 1000)}K+`;
-  return `${Math.round((max || 0) / 1000)}K以内`;
 };
 
 export default function JobDetailPage() {
@@ -50,60 +44,29 @@ export default function JobDetailPage() {
   const [bookmarking, setBookmarking] = useState(false);
   const [applying, setApplying] = useState(false);
 
-  const fetchJob = async (jobId: string) => {
-    setLoading(true);
-    try {
-      const res = await jobApi.get(jobId);
-      setJob(res.data);
-    } catch (err) {
-      console.error(err);
-      message.error('岗位不存在或已下线');
-      router.replace('/');
-    } finally {
-      setLoading(false);
-    }
+  const formatSalary = (min?: number | null, max?: number | null) => {
+    if (!min && !max) return '薪资面议';
+    if (min && max) return `${Math.round(min / 1000)}K-${Math.round(max / 1000)}K`;
+    if (min) return `${Math.round(min / 1000)}K+`;
+    return `${Math.round((max || 0) / 1000)}K以内`;
   };
 
   useEffect(() => {
-    if (typeof id === 'string') {
-      fetchJob(id);
-    }
-  }, [id]);
-
-  const handleBookmark = async () => {
-    if (!isAuthenticated) {
-      message.warning('请先登录');
-      router.push('/login');
-      return;
-    }
-
-    if (!job) return;
-
-    setBookmarking(true);
-    try {
-      if (job.isBookmarked) {
-        const response = await jobApi.unbookmark(job.id);
-        if (response.code === 200) {
-          message.success('取消收藏成功');
-          setJob({ ...job, isBookmarked: false });
-        } else {
-          message.error(response.message || '取消收藏失败');
-        }
-      } else {
-        const response = await jobApi.bookmark(job.id);
-        if (response.code === 200) {
-          message.success('收藏成功');
-          setJob({ ...job, isBookmarked: true });
-        } else {
-          message.error(response.message || '收藏失败');
-        }
+    const fetchJob = async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const res: any = await jobApi.get(id as string);
+        setJob(res.data || null);
+      } catch (e: any) {
+        message.error(e?.message || '加载失败');
+        setJob(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (error: any) {
-      message.error(error.message || '操作失败');
-    } finally {
-      setBookmarking(false);
-    }
-  };
+    };
+    fetchJob();
+  }, [id]);
 
   const handleApply = async () => {
     if (!isAuthenticated) {
@@ -136,6 +99,32 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleBookmark = async () => {
+    if (!isAuthenticated) {
+      message.warning('请先登录');
+      router.push('/login');
+      return;
+    }
+    if (!job) return;
+
+    setBookmarking(true);
+    try {
+      if (job.isBookmarked) {
+        await jobApi.unbookmark(job.id);
+        setJob({ ...job, isBookmarked: false });
+        message.success('已取消收藏');
+      } else {
+        await jobApi.bookmark(job.id);
+        setJob({ ...job, isBookmarked: true });
+        message.success('收藏成功');
+      }
+    } catch (error: any) {
+      message.error(error.message || '操作失败');
+    } finally {
+      setBookmarking(false);
+    }
+  };
+
   const userMenuItems: MenuProps['items'] = [
     {
       key: 'dashboard',
@@ -164,7 +153,7 @@ export default function JobDetailPage() {
   return (
     <>
       <Head>
-        <title>{job ? `${job.title} - JobVerse` : '岗位详情 - JobVerse'}</title>
+        <title>{job?.title || '岗位详情'} - JobVerse</title>
       </Head>
       <Layout className={styles.layout}>
         <Header className={styles.header}>
@@ -187,16 +176,13 @@ export default function JobDetailPage() {
             )}
           </Space>
         </Header>
-
         <Content className={styles.content}>
-          <div style={{ marginBottom: 16 }}>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => router.back()}>
-              返回
-            </Button>
-          </div>
-
+          <div style={{ maxWidth: 900, margin: '24px auto' }}>
+            <div style={{ marginBottom: 12 }}>
+              <Button icon={<ArrowLeftOutlined />} onClick={() => router.back()}>返回上一页</Button>
+            </div>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
               <Spin />
             </div>
           ) : job ? (
@@ -207,7 +193,11 @@ export default function JobDetailPage() {
               </div>
               <div className={styles.jobCompany}>
                 <Space size="middle">
-                  <Text strong>{job.company?.name ?? '未命名企业'}</Text>
+                  <Text strong>
+                    <Link href={`/companies/${job.company?.id}`} style={{ color: 'inherit' }}>
+                        {job.company?.name ?? '未命名企业'}
+                    </Link>
+                  </Text>
                   {job.company?.verifiedBySchool && <Tag color="blue">学校认证</Tag>}
                   {job.company?.industry && <Tag>{job.company.industry}</Tag>}
                   {job.company?.scale && <Tag>{job.company.scale}</Tag>}
@@ -272,14 +262,16 @@ export default function JobDetailPage() {
               </div>
             </Card>
           ) : (
-            <Card>
-              <Text>未找到岗位信息</Text>
-            </Card>
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+               <Text>未找到岗位</Text>
+            </div>
           )}
+          </div>
         </Content>
-
         <Footer className={styles.footer}>
-          <Text type="secondary">JobVerse ©{new Date().getFullYear()}</Text>
+          <Text type="secondary">
+            JobVerse ©{new Date().getFullYear()} - 面向高校学生的智能一体化招聘平台
+          </Text>
         </Footer>
       </Layout>
     </>

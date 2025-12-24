@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Table, Tag, Card, Button, Space, Typography, Modal, message, Form, Input, InputNumber, Select } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SendOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SendOutlined, CopyOutlined } from '@ant-design/icons';
 import EmployerLayout from '@/components/layouts/EmployerLayout';
 import Head from 'next/head';
 import type { ColumnsType } from 'antd/es/table';
@@ -172,6 +172,15 @@ export default function EmployerJobs() {
         <Space>
           <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
           <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDeleteClick(record.id)}>删除</Button>
+          <Button type="link" icon={<CopyOutlined />} onClick={async () => {
+            try {
+              await employerApi.duplicateJob(record.id);
+              message.success('已创建复制草稿');
+              fetchJobs();
+            } catch (e) {
+              message.error('复制失败');
+            }
+          }}>复制</Button>
           {(record.status === 'DRAFT' || record.status === 'REJECTED') && (
             <Button type="link" icon={<SendOutlined />} onClick={() => handleSubmitReview(record.id)}>
               提交审核

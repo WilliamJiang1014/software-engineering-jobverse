@@ -18,6 +18,9 @@ interface CompanyInfo {
   website?: string;
   logo?: string;
   verifiedBySchool: boolean;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 export default function EmployerCompany() {
@@ -40,9 +43,12 @@ export default function EmployerCompany() {
           name: company.name,
           industry: company.industry,
           scale: company.scale,
-          address: company.location,
+          location: company.location,
           website: company.website,
           description: company.description,
+          contactPerson: company.contactPerson,
+          contactPhone: company.contactPhone,
+          contactEmail: company.contactEmail,
         });
       } else {
         message.error(response.message || '获取企业信息失败');
@@ -54,9 +60,21 @@ export default function EmployerCompany() {
     }
   };
 
-  const onFinish = (values: any) => {
-    console.log('更新企业信息:', values);
-    message.success('企业信息更新成功');
+  const onFinish = async (values: any) => {
+    try {
+      setLoading(true);
+      const response = await employerApi.updateCompany(values);
+      if (response.code === 200) {
+        message.success('企业信息更新成功');
+        fetchCompanyInfo();
+      } else {
+        message.error(response.message || '更新失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '更新失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -102,7 +120,7 @@ export default function EmployerCompany() {
             name: 'XX科技有限公司',
             industry: '互联网/IT',
             scale: '100-499人',
-            address: '北京市海淀区中关村科技园',
+            location: '北京市海淀区中关村科技园',
             website: 'https://www.example.com',
             description: '我们是一家专注于人工智能技术研发的高科技企业...',
           }}
@@ -118,7 +136,7 @@ export default function EmployerCompany() {
           <Form.Item label="企业规模" name="scale">
             <Input />
           </Form.Item>
-          <Form.Item label="企业地址" name="address">
+          <Form.Item label="企业地址" name="location">
             <Input />
           </Form.Item>
           <Form.Item label="企业官网" name="website">
@@ -127,6 +145,19 @@ export default function EmployerCompany() {
           <Form.Item label="企业介绍" name="description">
             <TextArea rows={4} />
           </Form.Item>
+
+          <Divider orientation="left">联系方式</Divider>
+          
+          <Form.Item label="联系人" name="contactPerson">
+            <Input placeholder="请输入联系人姓名" />
+          </Form.Item>
+          <Form.Item label="联系电话" name="contactPhone">
+            <Input placeholder="请输入联系电话" />
+          </Form.Item>
+          <Form.Item label="联系邮箱" name="contactEmail" rules={[{ type: 'email', message: '请输入有效的邮箱地址' }]}>
+            <Input placeholder="请输入联系邮箱" />
+          </Form.Item>
+
           <Form.Item label="企业Logo">
             <Upload>
               <Button icon={<UploadOutlined />}>上传Logo</Button>

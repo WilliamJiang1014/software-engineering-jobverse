@@ -162,6 +162,12 @@ app.use('/api/v1/employer', authMiddleware, createProxyMiddleware({
   onProxyReq,
 }));
 
+app.use('/api/v1/companies', createProxyMiddleware({
+  target: serviceUrls.job,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/companies': '/api/v1/companies' },
+}));
+
 // 代理到审核服务（需要鉴权）
 app.use('/api/v1/admin/review', authMiddleware, createProxyMiddleware({
   target: serviceUrls.review,

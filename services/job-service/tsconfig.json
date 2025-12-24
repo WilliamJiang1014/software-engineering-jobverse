@@ -9,8 +9,12 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@jobverse/shared": ["../../packages/shared/src"],
+      "@jobverse/shared/*": ["../../packages/shared/src/*"]
+    },
     "outDir": "./dist",
-    "rootDir": "./src",
     "declaration": false
   },
   "include": ["src/**/*"],
