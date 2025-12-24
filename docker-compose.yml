@@ -236,11 +236,12 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+      - CI=true
     volumes:
       - ./apps/frontend:/app
       - /app/node_modules
       - /app/.next
-    command: pnpm dev
+    command: sh -c "pnpm install && pnpm dev -H 0.0.0.0 -p 8080"
     depends_on:
       api-gateway:
         condition: service_started
@@ -258,4 +259,3 @@ networks:
   jobverse-network:
     name: jobverse-network
     driver: bridge
-

@@ -38,7 +38,8 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('combined'));
-// app.use(express.json()); // 禁用全局JSON解析，由各个微服务自行处理，避免代理请求体丢失问题
+// 解析 JSON 请求体，配合 onProxyReq 重新注入，避免代理丢失 body
+app.use(express.json());
 
 // 代理请求体处理函数 - 不再需要，直接流式透传
 // const onProxyReq = (proxyReq: any, req: any, _res: any) => {
@@ -74,11 +75,25 @@ const serviceUrls = {
   audit: process.env.AUDIT_SERVICE_URL || 'http://audit-service:3006',
 };
 
+const onProxyReq = (proxyReq: any, req: any) => {
+  if (!req.body || Object.keys(req.body).length === 0) {
+    return;
+  }
+
+  const contentType = req.headers['content-type'] || '';
+  if (typeof contentType === 'string' && contentType.includes('application/json')) {
+    const bodyData = JSON.stringify(req.body);
+    proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+    proxyReq.write(bodyData);
+  }
+};
+
 // 代理到用户服务（认证相关不需要鉴权）
 app.use('/api/v1/auth', createProxyMiddleware({
   target: serviceUrls.user,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/auth': '/api/v1/auth' },
+  onProxyReq,
 }));
 
 // 代理到用户服务（用户信息需要鉴权）
@@ -86,6 +101,7 @@ app.use('/api/v1/users', authMiddleware, createProxyMiddleware({
   target: serviceUrls.user,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/users': '/api/v1/users' },
+  onProxyReq,
 }));
 
 // 创建岗位服务的代理中间件
@@ -93,6 +109,7 @@ const jobProxy = createProxyMiddleware({
   target: serviceUrls.job,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/jobs': '/api/v1/jobs' },
+  onProxyReq,
 });
 
 // 代理到岗位服务（条件认证）
@@ -134,6 +151,7 @@ app.use('/api/v1/search', createProxyMiddleware({
   target: serviceUrls.search,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/search': '/api/v1/search' },
+  onProxyReq,
 }));
 
 // 代理到企业端API（需要鉴权）
@@ -141,6 +159,7 @@ app.use('/api/v1/employer', authMiddleware, createProxyMiddleware({
   target: serviceUrls.job,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/employer': '/api/v1/employer' },
+  onProxyReq,
 }));
 
 // 代理到审核服务（需要鉴权）
@@ -148,6 +167,7 @@ app.use('/api/v1/admin/review', authMiddleware, createProxyMiddleware({
   target: serviceUrls.review,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/admin/review': '/api/v1/review' },
+  onProxyReq,
 }));
 
 // 代理到风控服务（需要鉴权）
@@ -155,6 +175,7 @@ app.use('/api/v1/admin/risk', authMiddleware, createProxyMiddleware({
   target: serviceUrls.risk,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/admin/risk': '/api/v1/risk' },
+  onProxyReq,
 }));
 
 // 代理到风控检测服务（公开接口，岗位提交时调用）
@@ -162,6 +183,7 @@ app.use('/api/v1/risk', createProxyMiddleware({
   target: serviceUrls.risk,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/risk': '/api/v1/risk' },
+  onProxyReq,
 }));
 
 // 代理到审计服务（需要鉴权）
@@ -169,6 +191,7 @@ app.use('/api/v1/admin/audit', authMiddleware, createProxyMiddleware({
   target: serviceUrls.audit,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/admin/audit': '/api/v1/audit' },
+  onProxyReq,
 }));
 
 // 错误处理
