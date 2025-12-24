@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { JobStatus, Prisma } from '@prisma/client';
 import { successResponse, ErrorResponses, jobSearchSchema } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
+import { calculateCompanyRisk } from '../utils/risk';
 
 const router: Router = Router();
 
@@ -211,10 +212,23 @@ router.get('/:id', async (req: Request, res: Response) => {
       isApplied = !!application;
     }
 
+    // 计算企业风险信息
+    const riskInfo = await calculateCompanyRisk(job.companyId);
+
     res.json(successResponse({
       ...job,
       isBookmarked,
       isApplied,
+      company: {
+        ...job.company,
+        riskInfo: riskInfo || {
+          riskLevel: 'low' as const,
+          riskScore: 0,
+          riskMessage: '',
+          riskDetails: [],
+          riskFactors: [],
+        },
+      },
     }));
   } catch (error) {
     console.error('获取岗位详情失败:', error);

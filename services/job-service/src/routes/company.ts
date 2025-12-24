@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { successResponse, ErrorResponses, maskEmail, maskPhone } from '@jobverse/shared';
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { calculateCompanyRisk } from '../utils/risk';
 
 const router: Router = Router();
 
@@ -76,6 +77,10 @@ router.get('/:id', async (req: Request, res: Response) => {
     const historyPublishedJobs = await prisma.job.count({
       where: { companyId: id, status: { in: [JobStatus.OFFLINE, JobStatus.REJECTED] } },
     });
+
+    // 计算企业风险信息
+    const riskInfo = await calculateCompanyRisk(id);
+
     res.json(successResponse({
       ...company,
       contactPhone: company.contactPhone ? maskPhone(company.contactPhone) : null,
@@ -83,6 +88,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       stats: {
         currentOpenJobs,
         historyPublishedJobs,
+      },
+      riskInfo: riskInfo || {
+        riskLevel: 'low' as const,
+        riskScore: 0,
+        riskMessage: '',
+        riskDetails: [],
+        riskFactors: [],
       },
     }));
   } catch (error) {

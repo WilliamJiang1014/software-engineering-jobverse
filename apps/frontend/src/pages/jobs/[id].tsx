@@ -8,6 +8,7 @@ import { jobApi } from '@/lib/api';
 import styles from '@/styles/Home.module.css';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MenuProps } from 'antd';
+import CompanyRiskAlert, { RiskInfo } from '@/components/CompanyRiskAlert';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -28,6 +29,7 @@ type JobDetail = {
     industry?: string | null;
     scale?: string | null;
     location?: string | null;
+    riskInfo?: RiskInfo;
   };
   createdAt?: string;
   isBookmarked?: boolean;
@@ -57,7 +59,18 @@ export default function JobDetailPage() {
       setLoading(true);
       try {
         const res: any = await jobApi.get(id as string);
-        setJob(res.data || null);
+        const jobData = res.data || {};
+        // 确保 company.riskInfo 存在
+        if (jobData.company && !jobData.company.riskInfo) {
+          jobData.company.riskInfo = {
+            riskLevel: 'low' as const,
+            riskScore: 0,
+            riskMessage: '',
+            riskDetails: [],
+            riskFactors: [],
+          };
+        }
+        setJob(jobData);
       } catch (e: any) {
         message.error(e?.message || '加载失败');
         setJob(null);
@@ -199,6 +212,9 @@ export default function JobDetailPage() {
                     </Link>
                   </Text>
                   {job.company?.verifiedBySchool && <Tag color="blue">学校认证</Tag>}
+                  {job.company?.riskInfo && (
+                    <CompanyRiskAlert riskInfo={job.company.riskInfo} companyName={job.company.name} />
+                  )}
                   {job.company?.industry && <Tag>{job.company.industry}</Tag>}
                   {job.company?.scale && <Tag>{job.company.scale}</Tag>}
                 </Space>

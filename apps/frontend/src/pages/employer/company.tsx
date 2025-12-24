@@ -4,6 +4,8 @@ import EmployerLayout from '@/components/layouts/EmployerLayout';
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { employerApi } from '@/lib/api';
+import EmployerRiskPanel from '@/components/EmployerRiskPanel';
+import { RiskInfo } from '@/components/CompanyRiskAlert';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -21,6 +23,7 @@ interface CompanyInfo {
   contactPerson?: string;
   contactPhone?: string;
   contactEmail?: string;
+  riskInfo?: RiskInfo;
 }
 
 export default function EmployerCompany() {
@@ -109,6 +112,10 @@ export default function EmployerCompany() {
               </>
             )}
           </div>
+
+          {companyInfo?.riskInfo && (
+            <EmployerRiskPanel riskInfo={companyInfo.riskInfo} />
+          )}
         </Spin>
 
         <Divider />

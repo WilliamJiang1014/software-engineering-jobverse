@@ -3,6 +3,7 @@ import { JobStatus, ApplicationStatus, Prisma } from '@prisma/client';
 import { successResponse, ErrorResponses, createJobSchema, updateJobSchema, updateCompanySchema } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
 import axios from 'axios';
+import { calculateCompanyRisk } from '../utils/risk';
 
 const router: Router = Router();
 
@@ -54,7 +55,19 @@ router.get('/company', async (req: Request, res: Response) => {
       return res.status(404).json(ErrorResponses.notFound('公司不存在'));
     }
 
-    res.json(successResponse(company));
+    // 计算企业风险信息
+    const riskInfo = await calculateCompanyRisk(companyId);
+
+    res.json(successResponse({
+      ...company,
+      riskInfo: riskInfo || {
+        riskLevel: 'low' as const,
+        riskScore: 100,
+        riskMessage: '',
+        riskDetails: [],
+        riskFactors: [],
+      },
+    }));
   } catch (error) {
     console.error('获取企业信息失败:', error);
     res.status(500).json(ErrorResponses.internalError());

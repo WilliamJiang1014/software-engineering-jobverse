@@ -6,6 +6,7 @@ import { companyApi } from '@/lib/api';
 import Link from 'next/link';
 import styles from '@/styles/Home.module.css';
 import { ArrowLeftOutlined } from '@ant-design/icons';
+import CompanyRiskAlert, { RiskInfo } from '@/components/CompanyRiskAlert';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -28,6 +29,7 @@ type Company = {
     currentOpenJobs: number;
     totalJobs: number;
   };
+  riskInfo?: RiskInfo;
 };
 
 type CompanyJob = {
@@ -66,9 +68,22 @@ export default function CompanyDetailPage() {
           companyApi.get(id),
           companyApi.jobs(id),
         ]);
-        setCompany(cRes.data);
+        // 确保 riskInfo 存在，如果不存在则设置默认值
+        const companyData = cRes.data || {};
+        if (!companyData.riskInfo) {
+          companyData.riskInfo = {
+            riskLevel: 'low' as const,
+            riskScore: 0,
+            riskMessage: '',
+            riskDetails: [],
+            riskFactors: [],
+          };
+        }
+        setCompany(companyData);
         setOpenJobs(jRes.data.items || []);
         setHistoryJobs(jRes.data.historyItems || []);
+      } catch (error) {
+        console.error('获取企业信息失败:', error);
       } finally {
         setLoading(false);
       }
@@ -104,6 +119,9 @@ export default function CompanyDetailPage() {
                     <Title level={3} style={{ marginBottom: 0 }}>{company.name}</Title>
                     <Space>
                       {company.verifiedBySchool && <Tag color="blue">学校认证</Tag>}
+                      {company.riskInfo && (
+                        <CompanyRiskAlert riskInfo={company.riskInfo} companyName={company.name} />
+                      )}
                       {company.industry && <Tag>{company.industry}</Tag>}
                       {company.scale && <Tag>{company.scale}</Tag>}
                       {company.location && <Tag>{company.location}</Tag>}
