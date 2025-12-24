@@ -1,7 +1,7 @@
 import Head from 'next/head';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import { Layout, Typography, Input, Button, Card, Row, Col, Tag, Space, Empty, Spin, message, Avatar, Dropdown } from 'antd';
+import { Layout, Typography, Input, Button, Card, Row, Col, Tag, Space, Empty, Spin, message, Avatar, Dropdown, AutoComplete } from 'antd';
 import { SearchOutlined, EnvironmentOutlined, UserOutlined, LogoutOutlined, DashboardOutlined } from '@ant-design/icons';
 import { jobApi, searchApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +35,9 @@ export default function Home() {
   const [jobs, setJobs] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [hotKeywords, setHotKeywords] = useState<HotKeyword[]>([]);
+  const [searchValue, setSearchValue] = useState('');
+  const [suggestOptions, setSuggestOptions] = useState<{ value: string }[]>([]);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const formatSalary = (min?: number | null, max?: number | null) => {
     if (!min && !max) return '薪资面议';
@@ -69,13 +72,29 @@ export default function Home() {
   const handleSearch = (value: string) => {
     const keyword = value.trim();
     if (keyword) {
-      // 如果已登录且是学生，跳转到学生端搜索页面；否则跳转到公开搜索页面
-      if (isAuthenticated && user?.role === 'STUDENT') {
-        router.push(`/student/jobs?keyword=${encodeURIComponent(keyword)}`);
-      } else {
-        router.push(`/search?keyword=${encodeURIComponent(keyword)}`);
-      }
+      router.push(`/search?keyword=${encodeURIComponent(keyword)}`);
     }
+  };
+
+  const handleSuggest = (value: string) => {
+    setSearchValue(value);
+    if (suggestTimerRef.current) {
+      clearTimeout(suggestTimerRef.current);
+    }
+    const keyword = value.trim();
+    if (!keyword) {
+      setSuggestOptions([]);
+      return;
+    }
+    suggestTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await searchApi.suggest(keyword);
+        const items = (res.data || []).map((item: string) => ({ value: item }));
+        setSuggestOptions(items);
+      } catch (err) {
+        console.error(err);
+      }
+    }, 300);
   };
 
   const handleHotClick = (kw: string) => {
@@ -83,12 +102,7 @@ export default function Home() {
   };
 
   const handleViewMore = () => {
-    // 如果已登录且是学生，跳转到学生端搜索页面；否则跳转到公开岗位列表
-    if (isAuthenticated && user?.role === 'STUDENT') {
-      router.push('/student/jobs');
-    } else {
-      router.push('/jobs');
-    }
+    router.push('/jobs');
   };
 
   const handleCardClick = (id: string) => {
@@ -166,21 +180,27 @@ export default function Home() {
             <Title level={2} className={styles.searchTitle}>
               {isAuthenticated ? `欢迎回来，${user?.name || '同学'}！` : '找到你的理想工作'}
             </Title>
-            {isAuthenticated && (
+            {!isAuthenticated && (
               <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                {user?.role === 'STUDENT' && '登录后可以收藏岗位、投递简历，享受更多功能'}
-                {user?.role === 'EMPLOYER' && '登录后可以发布岗位、管理招聘，开始你的招聘之旅'}
-                {(user?.role === 'SCHOOL_ADMIN' || user?.role === 'PLATFORM_ADMIN') && '登录后可以管理平台、审核岗位'}
+                登录后可以收藏岗位、投递简历，享受更多功能
               </Text>
             )}
-            <Search
-              placeholder="搜索职位、公司..."
-              allowClear
-              enterButton={<><SearchOutlined /> 搜索</>}
-              size="large"
+            <AutoComplete
               className={styles.searchInput}
-              onSearch={handleSearch}
-            />
+              options={suggestOptions}
+              value={searchValue}
+              onSearch={handleSuggest}
+              onSelect={(value) => handleSearch(String(value))}
+              onChange={(value) => setSearchValue(String(value))}
+            >
+              <Search
+                placeholder="搜索职位、公司..."
+                allowClear
+                enterButton={<><SearchOutlined /> 搜索</>}
+                size="large"
+                onSearch={(value) => handleSearch(value)}
+              />
+            </AutoComplete>
             <div className={styles.hotTags}>
               <Text type="secondary">热门搜索：</Text>
               {hotKeywords.map((tag) => (
@@ -254,4 +274,3 @@ export default function Home() {
     </>
   );
 }
-

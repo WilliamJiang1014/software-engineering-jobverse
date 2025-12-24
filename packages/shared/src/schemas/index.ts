@@ -50,6 +50,7 @@ export const jobSearchSchema = z.object({
   salaryMax: z.coerce.number().int().positive().optional(),
   tags: z.array(z.string()).optional(),
   companyId: z.string().optional(),
+  sortBy: z.enum(['default', 'time', 'salary']).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
@@ -90,5 +91,4 @@ export const paginationSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
-
 
