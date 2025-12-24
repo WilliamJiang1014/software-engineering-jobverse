@@ -10,6 +10,9 @@ export interface Company {
   description?: string;
   logo?: string;
   website?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
   verifiedBySchool: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -26,6 +29,9 @@ export interface CreateCompanyRequest {
   description?: string;
   logo?: string;
   website?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 /**
@@ -39,6 +45,9 @@ export interface UpdateCompanyRequest {
   description?: string;
   logo?: string;
   website?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 

@@ -62,6 +62,9 @@ model Company {
   description      String?  @db.Text
   logo             String?
   website          String?
+  contactPerson    String?  @map("contact_person")
+  contactPhone     String?  @map("contact_phone")
+  contactEmail     String?  @map("contact_email")
   verifiedBySchool Boolean  @default(false) @map("verified_by_school")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")

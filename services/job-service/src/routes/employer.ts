@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { JobStatus, ApplicationStatus, Prisma } from '@prisma/client';
-import { successResponse, ErrorResponses, createJobSchema, updateJobSchema } from '@jobverse/shared';
+import { successResponse, ErrorResponses, createJobSchema, updateJobSchema, updateCompanySchema } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
 import axios from 'axios';
 
@@ -41,6 +41,9 @@ router.get('/company', async (req: Request, res: Response) => {
         description: true,
         website: true,
         logo: true,
+        contactPerson: true,
+        contactPhone: true,
+        contactEmail: true,
         verifiedBySchool: true,
         createdAt: true,
         updatedAt: true,
@@ -54,6 +57,40 @@ router.get('/company', async (req: Request, res: Response) => {
     res.json(successResponse(company));
   } catch (error) {
     console.error('获取企业信息失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
+
+/**
+ * 更新企业信息
+ * PUT /api/v1/employer/company
+ */
+router.put('/company', async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers['x-user-id'] as string;
+    if (!userId) {
+      return res.status(401).json(ErrorResponses.unauthorized());
+    }
+
+    const companyId = await getCompanyId(userId);
+    if (!companyId) {
+      return res.status(403).json(ErrorResponses.forbidden('非企业用户或未绑定公司'));
+    }
+
+    // 验证请求数据
+    const validatedData = updateCompanySchema.parse(req.body);
+
+    const company = await prisma.company.update({
+      where: { id: companyId },
+      data: validatedData,
+    });
+
+    res.json(successResponse(company));
+  } catch (error: any) {
+    if (error.issues) {
+      return res.status(400).json(ErrorResponses.badRequest('参数错误', error.message));
+    }
+    console.error('更新企业信息失败:', error);
     res.status(500).json(ErrorResponses.internalError());
   }
 });
@@ -555,8 +592,8 @@ router.delete('/jobs/:id', async (req: Request, res: Response) => {
       return res.status(500).json(ErrorResponses.internalError('验证服务暂时不可用'));
     }
 
-    // 3. 删除岗位
-    await prisma.job.delete({ where: { id } });
+    // 3. 软删除岗位：标记为 OFFLINE，保留历史记录
+    await prisma.job.update({ where: { id }, data: { status: JobStatus.OFFLINE } });
 
     res.json(successResponse(null, '岗位已删除'));
   } catch (error) {
@@ -666,6 +703,45 @@ router.put('/candidates/:id/status', async (req: Request, res: Response) => {
     res.json(successResponse(updatedApplication, '状态更新成功'));
   } catch (error) {
     console.error('更新候选人状态失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
+
+router.post('/jobs/:id/duplicate', async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers['x-user-id'] as string;
+    const { id } = req.params;
+    if (!userId) {
+      return res.status(401).json(ErrorResponses.unauthorized());
+    }
+    const companyId = await getCompanyId(userId);
+    if (!companyId) {
+      return res.status(403).json(ErrorResponses.forbidden('非企业用户或未绑定公司'));
+    }
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) {
+      return res.status(404).json(ErrorResponses.notFound('岗位不存在'));
+    }
+    if (job.companyId !== companyId) {
+      return res.status(403).json(ErrorResponses.forbidden('无权复制此岗位'));
+    }
+    const duplicated = await prisma.job.create({
+      data: {
+        companyId,
+        title: `${job.title}（复制）`,
+        location: job.location,
+        salaryMin: job.salaryMin || null,
+        salaryMax: job.salaryMax || null,
+        description: job.description || null,
+        requirements: job.requirements || null,
+        tags: job.tags || [],
+        status: JobStatus.DRAFT,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      }
+    });
+    res.status(201).json(successResponse(duplicated, '复制成功'));
+  } catch (error) {
+    console.error('复制岗位失败:', error);
     res.status(500).json(ErrorResponses.internalError());
   }
 });

@@ -65,7 +65,15 @@ export const createCompanySchema = z.object({
   description: z.string().max(2000, '企业介绍最多2000个字符').optional(),
   logo: z.string().url().optional(),
   website: z.string().url().optional(),
+  contactPerson: z.string().optional(),
+  contactPhone: z.string().optional(),
+  contactEmail: z.string().email('邮箱格式不正确').optional().or(z.literal('')),
 });
+
+/**
+ * 更新企业 Schema
+ */
+export const updateCompanySchema = createCompanySchema.partial();
 
 /**
  * 审核 Schema
