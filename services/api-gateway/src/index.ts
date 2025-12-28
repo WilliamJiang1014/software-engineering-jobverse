@@ -112,6 +112,22 @@ app.use('/api/v1/users', authMiddleware, createProxyMiddleware({
   onProxyReq,
 }));
 
+// 代理到通知服务（需要鉴权）
+app.use('/api/v1/notifications', authMiddleware, createProxyMiddleware({
+  target: serviceUrls.user,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/notifications': '/api/v1/notifications' },
+  onProxyReq,
+}));
+
+// 代理到简历服务（需要鉴权）
+app.use('/api/v1/resumes', authMiddleware, createProxyMiddleware({
+  target: serviceUrls.user,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/resumes': '/api/v1/resumes' },
+  onProxyReq,
+}));
+
 // 创建岗位服务的代理中间件
 const jobProxy = createProxyMiddleware({
   target: serviceUrls.job,
@@ -152,6 +168,22 @@ app.use('/api/v1/bookmarks', authMiddleware, createProxyMiddleware({
   target: serviceUrls.job,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/bookmarks': '/api/v1/bookmarks' },
+}));
+
+// 代理到面试服务（需要鉴权）
+app.use('/api/v1/interviews', authMiddleware, createProxyMiddleware({
+  target: serviceUrls.job,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/interviews': '/api/v1/interviews' },
+  onProxyReq,
+}));
+
+// 代理到投递事件服务（需要鉴权）
+app.use('/api/v1/application-events', authMiddleware, createProxyMiddleware({
+  target: serviceUrls.job,
+  changeOrigin: true,
+  pathRewrite: { '^/api/v1/application-events': '/api/v1/application-events' },
+  onProxyReq,
 }));
 
 // 代理到搜索服务

@@ -22,6 +22,8 @@ export interface Application {
   status: ApplicationStatus;
   resume?: string;
   coverLetter?: string;
+  feedback?: string;        // 企业反馈（对学生可见）
+  employerNote?: string;    // 企业内部备注（仅企业可见）
   appliedAt: Date;
   updatedAt: Date;
   user?: User;
@@ -33,7 +35,8 @@ export interface Application {
  */
 export interface CreateApplicationRequest {
   jobId: string;
-  resume?: string;
+  resumeId?: string;        // 简历ID（从简历中心选择）
+  resume?: string;          // 简历内容/链接（快照或直接提交）
   coverLetter?: string;
 }
 
@@ -42,7 +45,8 @@ export interface CreateApplicationRequest {
  */
 export interface UpdateApplicationStatusRequest {
   status: ApplicationStatus;
-  feedback?: string;
+  feedback?: string;        // 企业反馈
+  employerNote?: string;    // 企业内部备注
 }
 
 

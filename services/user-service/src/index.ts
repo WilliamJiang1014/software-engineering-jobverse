@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import { authRouter } from './routes/auth';
 import { userRouter } from './routes/user';
 import { healthRouter } from './routes/health';
+import notificationRouter from './routes/notifications';
+import resumeRouter from './routes/resumes';
 import { errorHandler } from './middleware/error';
 
 // 加载环境变量
@@ -22,6 +24,8 @@ app.use(express.json());
 app.use('/health', healthRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
+app.use('/api/v1/notifications', notificationRouter);
+app.use('/api/v1/resumes', resumeRouter);
 
 // 错误处理
 app.use(errorHandler);

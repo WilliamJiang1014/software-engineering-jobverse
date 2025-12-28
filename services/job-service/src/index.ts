@@ -8,6 +8,8 @@ import { companyRouter } from './routes/company';
 import { applicationRouter } from './routes/application';
 import { bookmarkRouter } from './routes/bookmarks';
 import { healthRouter } from './routes/health';
+import interviewRouter from './routes/interviews';
+import applicationEventRouter from './routes/applicationEvents';
 import { errorHandler } from './middleware/error';
 
 dotenv.config();
@@ -26,6 +28,8 @@ app.use('/api/v1/employer', employerRouter);
 app.use('/api/v1/companies', companyRouter);
 app.use('/api/v1/applications', applicationRouter);
 app.use('/api/v1/bookmarks', bookmarkRouter);
+app.use('/api/v1', interviewRouter); // 面试相关路由（包含企业端和学生端）
+app.use('/api/v1', applicationEventRouter); // 投递事件/时间线路由
 // 注意：更新候选人状态接口在 employer 路由中，路径为 /api/v1/employer/applications/:id
 
 app.use(errorHandler);

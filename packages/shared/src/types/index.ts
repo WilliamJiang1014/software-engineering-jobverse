@@ -5,5 +5,9 @@ export * from './company';
 export * from './application';
 export * from './review';
 export * from './common';
+export * from './notification';
+export * from './interview';
+export * from './resume';
+export * from './applicationEvent';
 
 

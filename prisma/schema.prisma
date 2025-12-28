@@ -32,10 +32,12 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // 关联关系
-  applications Application[]
-  bookmarks    Bookmark[]
-  employerInfo EmployerInfo?
-  reviews      Review[]
+  applications  Application[]
+  bookmarks     Bookmark[]
+  employerInfo  EmployerInfo?
+  reviews       Review[]
+  notifications Notification[]
+  resumes       Resume[]
 
   @@map("users")
 }
@@ -139,18 +141,22 @@ enum JobStatus {
 
 /// 投递记录表
 model Application {
-  id          String            @id @default(uuid())
-  userId      String            @map("user_id")
-  jobId       String            @map("job_id")
-  status      ApplicationStatus @default(APPLIED)
-  resume      String?           @db.Text
-  coverLetter String?           @db.Text @map("cover_letter")
-  appliedAt   DateTime          @default(now()) @map("applied_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  id           String            @id @default(uuid())
+  userId       String            @map("user_id")
+  jobId        String            @map("job_id")
+  status       ApplicationStatus @default(APPLIED)
+  resume       String?           @db.Text
+  coverLetter  String?           @db.Text @map("cover_letter")
+  feedback     String?           @db.Text // 企业反馈（对学生可见）
+  employerNote String?           @db.Text @map("employer_note") // 企业内部备注（仅企业可见）
+  appliedAt    DateTime          @default(now()) @map("applied_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
 
   // 关联关系
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job               Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  interviews        Interview[]
+  applicationEvents ApplicationEvent[]
 
   @@unique([userId, jobId])
   @@index([userId])
@@ -251,5 +257,133 @@ model AuditLog {
   @@index([resourceType, resourceId])
   @@index([action])
   @@map("audit_logs")
+}
+
+// ============================================
+// 通知相关模型（演示增强功能）
+// ============================================
+
+/// 通知表
+model Notification {
+  id           String           @id @default(uuid())
+  userId       String           @map("user_id")
+  type         NotificationType
+  title        String
+  content      String           @db.Text
+  resourceType String?          @map("resource_type") // JOB, APPLICATION, INTERVIEW, REVIEW, etc.
+  resourceId   String?          @map("resource_id")
+  isRead       Boolean          @default(false) @map("is_read")
+  readAt       DateTime?        @map("read_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// 通知类型枚举
+enum NotificationType {
+  APPLY_SUCCESS      // 投递成功
+  NEW_APPLICATION    // 收到新投递
+  STATUS_UPDATE      // 状态更新
+  INTERVIEW          // 面试相关
+  REVIEW_RESULT      // 审核结果
+  SYSTEM             // 系统通知
+}
+
+// ============================================
+// 面试相关模型（演示增强功能）
+// ============================================
+
+/// 面试邀请表
+model Interview {
+  id             String          @id @default(uuid())
+  applicationId  String          @map("application_id")
+  employerId     String?         @map("employer_id") // 发起人
+  scheduledAt    DateTime        @map("scheduled_at")
+  mode           InterviewMode   @default(ONLINE)
+  locationOrLink String?         @map("location_or_link")
+  note           String?         @db.Text
+  status         InterviewStatus @default(PENDING)
+  studentComment String?         @db.Text @map("student_comment") // 学生备注/改期说明
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  // 关联关系
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("interviews")
+}
+
+/// 面试模式枚举
+enum InterviewMode {
+  ONLINE  // 线上
+  OFFLINE // 线下
+}
+
+/// 面试状态枚举
+enum InterviewStatus {
+  PENDING              // 待确认
+  CONFIRMED            // 已确认
+  DECLINED             // 已拒绝
+  CANCELLED            // 已取消
+  RESCHEDULE_REQUESTED // 改期请求中
+}
+
+// ============================================
+// 投递时间线相关模型（演示增强功能）
+// ============================================
+
+/// 投递事件表（时间线）
+model ApplicationEvent {
+  id            String                 @id @default(uuid())
+  applicationId String                 @map("application_id")
+  type          ApplicationEventType
+  actorRole     UserRole               @map("actor_role")
+  actorId       String?                @map("actor_id")
+  metadata      Json? // 如 { fromStatus, toStatus, interviewId, comment, etc. }
+  createdAt     DateTime               @default(now()) @map("created_at")
+
+  // 关联关系
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+  @@map("application_events")
+}
+
+/// 投递事件类型枚举
+enum ApplicationEventType {
+  APPLIED              // 已投递
+  VIEWED               // 已查看
+  STATUS_CHANGED       // 状态变更
+  INTERVIEW_CREATED    // 面试邀请创建
+  INTERVIEW_RESPONDED  // 面试邀请响应
+  INTERVIEW_CANCELLED  // 面试取消
+  REVIEW_RESULT        // 审核结果
+}
+
+// ============================================
+// 简历相关模型（演示增强功能）
+// ============================================
+
+/// 简历表
+model Resume {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String // 简历名称，如"技术岗简历"
+  content   String   @db.Text // 简历内容或链接
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 关联关系
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isDefault])
+  @@map("resumes")
 }
 
