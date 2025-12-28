@@ -111,7 +111,7 @@ export default function StudentDashboard() {
         <Col span={12}>
           <Card 
             title="推荐岗位" 
-            extra={<Link href="/student/jobs">搜索岗位</Link>}
+            extra={<Link href="/">搜索岗位</Link>}
           >
             <List
               dataSource={recommendedJobs}

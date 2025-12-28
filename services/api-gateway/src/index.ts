@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, requireRole } from './middleware/auth';
 import { optionalAuthMiddleware } from './middleware/optionalAuth';
 import { errorHandler } from './middleware/error';
 import { healthRouter } from './routes/health';
@@ -54,16 +54,24 @@ app.use(express.json());
 //   }
 // };
 
-// 限流配置
+// 限流配置（开发环境放宽限制，生产环境使用更严格的限制）
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15分钟
-  max: 100, // 限制100次请求
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 开发环境1000次，生产环境100次
   message: { code: 429, message: '请求过于频繁，请稍后再试' },
+  standardHeaders: true, // 返回标准的 RateLimit-* 头
+  legacyHeaders: false, // 禁用 X-RateLimit-* 头
+  skip: (req) => {
+    // 跳过健康检查路由
+    return req.path === '/health' || req.path.startsWith('/health/');
+  },
 });
-app.use(limiter);
 
-// 健康检查路由
+// 健康检查路由（在限流之前，避免被限流）
 app.use('/health', healthRouter);
+
+// 应用限流中间件（在健康检查之后）
+app.use(limiter);
 
 // 服务代理配置
 const serviceUrls = {
@@ -176,8 +184,8 @@ app.use('/api/v1/admin/review', authMiddleware, createProxyMiddleware({
   onProxyReq,
 }));
 
-// 代理到风控服务（需要鉴权）
-app.use('/api/v1/admin/risk', authMiddleware, createProxyMiddleware({
+// 代理到风控服务（需要鉴权 + PLATFORM_ADMIN 角色）
+app.use('/api/v1/admin/risk', authMiddleware, requireRole('PLATFORM_ADMIN'), createProxyMiddleware({
   target: serviceUrls.risk,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/admin/risk': '/api/v1/risk' },
@@ -192,8 +200,8 @@ app.use('/api/v1/risk', createProxyMiddleware({
   onProxyReq,
 }));
 
-// 代理到审计服务（需要鉴权）
-app.use('/api/v1/admin/audit', authMiddleware, createProxyMiddleware({
+// 代理到审计服务（需要鉴权 + PLATFORM_ADMIN 角色）
+app.use('/api/v1/admin/audit', authMiddleware, requireRole('PLATFORM_ADMIN'), createProxyMiddleware({
   target: serviceUrls.audit,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/admin/audit': '/api/v1/audit' },

@@ -1,10 +1,11 @@
-import { Card, Row, Col, Statistic, Typography, Table, Spin } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Typography, Spin, Table, Button, Space } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, BarChartOutlined, TableOutlined } from '@ant-design/icons';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import { adminApi } from '@/lib/api';
 import { message } from 'antd';
+import { Line, Column, Pie } from '@ant-design/charts';
 
 const { Title } = Typography;
 
@@ -52,6 +53,7 @@ const topJobs = [
 export default function AdminStats() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [activeTab, setActiveTab] = useState('data');
 
   useEffect(() => {
     fetchStats();
@@ -74,16 +76,160 @@ export default function AdminStats() {
     }
   };
 
+  // 准备折线图数据
+  const lineData = weeklyStats.flatMap(item => [
+    { date: item.date, type: '新增岗位', value: item.jobs },
+    { date: item.date, type: '投递数', value: item.applications },
+    { date: item.date, type: '新增用户', value: item.users },
+  ]);
+
+  // 准备岗位状态饼图数据
+  const jobStatusData = stats ? [
+    { type: '已通过', value: stats.approvedJobs },
+    { type: '待审核', value: stats.pendingJobs },
+    { type: '已驳回', value: stats.rejectedJobs },
+  ].filter(item => item.value > 0) : [];
+
+  // 准备热门企业柱状图数据
+  const companyData = topCompanies.map(item => ({
+    name: item.name.length > 10 ? item.name.substring(0, 10) + '...' : item.name,
+    applications: item.applications,
+  }));
+
+  // 准备热门岗位柱状图数据
+  const jobData = topJobs.map(item => ({
+    title: item.title.length > 12 ? item.title.substring(0, 12) + '...' : item.title,
+    applications: item.applications,
+  }));
+
+  // 折线图配置
+  const lineConfig = {
+    data: lineData,
+    xField: 'date',
+    yField: 'value',
+    seriesField: 'type',
+    smooth: true,
+    point: {
+      size: 4,
+      shape: 'circle',
+    },
+    legend: {
+      position: 'top' as const,
+    },
+    color: ['#1890ff', '#52c41a', '#faad14'],
+    height: 300,
+  };
+
+  // 饼图配置
+  const pieConfig = {
+    data: jobStatusData,
+    angleField: 'value',
+    colorField: 'type',
+    radius: 0.8,
+    legend: {
+      position: 'bottom' as const,
+    },
+    interactions: [{ type: 'element-active' }],
+    color: ['#52c41a', '#faad14', '#ff4d4f'],
+    height: 300,
+    tooltip: {
+      formatter: (datum: any) => {
+        const total = jobStatusData.reduce((sum, item) => sum + item.value, 0);
+        return { name: datum.type, value: `${datum.value} (${total > 0 ? ((datum.value / total) * 100).toFixed(1) : 0}%)` };
+      },
+    },
+  };
+
+  // 热门企业柱状图配置
+  const companyColumnConfig = {
+    data: companyData,
+    xField: 'name',
+    yField: 'applications',
+    color: '#1890ff',
+    label: {
+      position: 'top' as const,
+      style: {
+        fill: '#666',
+      },
+    },
+    height: 300,
+    meta: {
+      name: { alias: '企业名称' },
+      applications: { alias: '投递数' },
+    },
+  };
+
+  // 热门岗位柱状图配置
+  const jobColumnConfig = {
+    data: jobData,
+    xField: 'title',
+    yField: 'applications',
+    color: '#52c41a',
+    label: {
+      position: 'top' as const,
+      style: {
+        fill: '#666',
+      },
+    },
+    height: 300,
+    meta: {
+      title: { alias: '岗位名称' },
+      applications: { alias: '投递数' },
+    },
+  };
+
+  // 每日数据表格列
+  const weeklyStatsColumns = [
+    { title: '日期', dataIndex: 'date', key: 'date', width: 100 },
+    { title: '新增岗位', dataIndex: 'jobs', key: 'jobs', align: 'right' as const },
+    { title: '投递数', dataIndex: 'applications', key: 'applications', align: 'right' as const },
+    { title: '新增用户', dataIndex: 'users', key: 'users', align: 'right' as const },
+  ];
+
+  // 热门企业表格列
+  const companyColumns = [
+    { title: '排名', dataIndex: 'rank', key: 'rank', width: 80, align: 'center' as const },
+    { title: '企业名称', dataIndex: 'name', key: 'name' },
+    { title: '岗位数', dataIndex: 'jobs', key: 'jobs', align: 'right' as const },
+    { title: '投递数', dataIndex: 'applications', key: 'applications', align: 'right' as const },
+  ];
+
+  // 热门岗位表格列
+  const jobColumns = [
+    { title: '排名', dataIndex: 'rank', key: 'rank', width: 80, align: 'center' as const },
+    { title: '岗位名称', dataIndex: 'title', key: 'title' },
+    { title: '企业', dataIndex: 'company', key: 'company' },
+    { title: '投递数', dataIndex: 'applications', key: 'applications', align: 'right' as const },
+  ];
+
   return (
     <AdminLayout>
       <Head>
         <title>数据统计 - JobVerse</title>
       </Head>
 
-      <Title level={4}>数据统计</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>数据统计</Title>
+        <Space>
+          <Button
+            type={activeTab === 'data' ? 'primary' : 'default'}
+            icon={<TableOutlined />}
+            onClick={() => setActiveTab('data')}
+          >
+            数据视图
+          </Button>
+          <Button
+            type={activeTab === 'charts' ? 'primary' : 'default'}
+            icon={<BarChartOutlined />}
+            onClick={() => setActiveTab('charts')}
+          >
+            图表视图
+          </Button>
+        </Space>
+      </div>
 
       <Spin spinning={loading}>
-        {/* 概览统计 */}
+        {/* 概览统计 - 始终显示 */}
         <Row gutter={16} style={{ marginTop: 24 }}>
           <Col span={6}>
             <Card>
@@ -132,7 +278,7 @@ export default function AdminStats() {
           </Col>
         </Row>
 
-        {/* 总体统计 */}
+        {/* 总体统计 - 始终显示 */}
         <Row gutter={16} style={{ marginTop: 24 }}>
           <Col span={6}>
             <Card>
@@ -206,63 +352,141 @@ export default function AdminStats() {
           </Col>
         </Row>
 
-      <Row gutter={16} style={{ marginTop: 24 }}>
-        {/* 每日统计 */}
-        <Col span={24}>
-          <Card title="每日数据趋势">
-            <Table
-              columns={[
-                { title: '日期', dataIndex: 'date', key: 'date' },
-                { title: '新增岗位', dataIndex: 'jobs', key: 'jobs' },
-                { title: '投递数', dataIndex: 'applications', key: 'applications' },
-                { title: '新增用户', dataIndex: 'users', key: 'users' },
-              ]}
-              dataSource={weeklyStats}
-              rowKey="date"
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={16} style={{ marginTop: 24 }}>
-        {/* 热门企业 */}
-        <Col span={12}>
-          <Card title="热门企业 TOP5">
-            <Table
-              columns={[
-                { title: '排名', dataIndex: 'rank', key: 'rank', width: 60 },
-                { title: '企业名称', dataIndex: 'name', key: 'name' },
-                { title: '岗位数', dataIndex: 'jobs', key: 'jobs' },
-                { title: '投递数', dataIndex: 'applications', key: 'applications' },
-              ]}
-              dataSource={topCompanies}
-              rowKey="rank"
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </Col>
-
-          {/* 热门岗位 */}
-          <Col span={12}>
-            <Card title="热门岗位 TOP5">
-              <Table
-                columns={[
-                  { title: '排名', dataIndex: 'rank', key: 'rank', width: 60 },
-                  { title: '岗位名称', dataIndex: 'title', key: 'title' },
-                  { title: '企业', dataIndex: 'company', key: 'company' },
-                  { title: '投递数', dataIndex: 'applications', key: 'applications' },
-                ]}
-                dataSource={topJobs}
-                rowKey="rank"
-                pagination={false}
-                size="small"
-              />
+        {/* 岗位状态分布 - 始终显示 */}
+        <Row gutter={16} style={{ marginTop: 24 }}>
+          <Col span={24}>
+            <Card title="岗位状态分布">
+              <Row gutter={16}>
+                <Col span={8}>
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                    <div style={{ fontSize: 32, fontWeight: 'bold', color: '#52c41a' }}>
+                      {stats?.approvedJobs || 0}
+                    </div>
+                    <div style={{ color: '#666', marginTop: 8 }}>已通过</div>
+                    {stats && stats.totalJobs > 0 && (
+                      <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                        {((stats.approvedJobs / stats.totalJobs) * 100).toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                    <div style={{ fontSize: 32, fontWeight: 'bold', color: '#faad14' }}>
+                      {stats?.pendingJobs || 0}
+                    </div>
+                    <div style={{ color: '#666', marginTop: 8 }}>待审核</div>
+                    {stats && stats.totalJobs > 0 && (
+                      <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                        {((stats.pendingJobs / stats.totalJobs) * 100).toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                    <div style={{ fontSize: 32, fontWeight: 'bold', color: '#ff4d4f' }}>
+                      {stats?.rejectedJobs || 0}
+                    </div>
+                    <div style={{ color: '#666', marginTop: 8 }}>已驳回</div>
+                    {stats && stats.totalJobs > 0 && (
+                      <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                        {((stats.rejectedJobs / stats.totalJobs) * 100).toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                </Col>
+              </Row>
             </Card>
           </Col>
         </Row>
+
+        {/* 数据视图和图表视图切换 */}
+        {activeTab === 'data' ? (
+          // 数据视图 - 表格展示
+          <>
+            <Row gutter={16} style={{ marginTop: 24 }}>
+              <Col span={24}>
+                <Card title="每日数据趋势（近7天）">
+                  <Table
+                    columns={weeklyStatsColumns}
+                    dataSource={weeklyStats}
+                    rowKey="date"
+                    pagination={false}
+                    size="middle"
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            <Row gutter={16} style={{ marginTop: 24 }}>
+              <Col span={12}>
+                <Card title="热门企业 TOP5（按投递数）">
+                  <Table
+                    columns={companyColumns}
+                    dataSource={topCompanies}
+                    rowKey="rank"
+                    pagination={false}
+                    size="middle"
+                  />
+                </Card>
+              </Col>
+
+              <Col span={12}>
+                <Card title="热门岗位 TOP5（按投递数）">
+                  <Table
+                    columns={jobColumns}
+                    dataSource={topJobs}
+                    rowKey="rank"
+                    pagination={false}
+                    size="middle"
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </>
+        ) : (
+          // 图表视图
+          <>
+            <Row gutter={16} style={{ marginTop: 24 }}>
+              {/* 每日数据趋势 - 折线图 */}
+              <Col span={16}>
+                <Card title="每日数据趋势（近7天）">
+                  <Line {...lineConfig} />
+                </Card>
+              </Col>
+
+              {/* 岗位状态分布 - 饼图 */}
+              <Col span={8}>
+                <Card title="岗位状态分布">
+                  {jobStatusData.length > 0 ? (
+                    <Pie {...pieConfig} />
+                  ) : (
+                    <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
+                      暂无数据
+                    </div>
+                  )}
+                </Card>
+              </Col>
+            </Row>
+
+            <Row gutter={16} style={{ marginTop: 24 }}>
+              {/* 热门企业 - 柱状图 */}
+              <Col span={12}>
+                <Card title="热门企业 TOP5（按投递数）">
+                  <Column {...companyColumnConfig} />
+                </Card>
+              </Col>
+
+              {/* 热门岗位 - 柱状图 */}
+              <Col span={12}>
+                <Card title="热门岗位 TOP5（按投递数）">
+                  <Column {...jobColumnConfig} />
+                </Card>
+              </Col>
+            </Row>
+          </>
+        )}
       </Spin>
     </AdminLayout>
   );

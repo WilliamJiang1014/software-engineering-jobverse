@@ -241,7 +241,7 @@ services:
       - ./apps/frontend:/app
       - /app/node_modules
       - /app/.next
-    command: sh -c "pnpm install && pnpm dev -H 0.0.0.0 -p 8080"
+    command: sh -c "pnpm install --no-frozen-lockfile && pnpm dev -H 0.0.0.0 -p 8080"
     depends_on:
       api-gateway:
         condition: service_started

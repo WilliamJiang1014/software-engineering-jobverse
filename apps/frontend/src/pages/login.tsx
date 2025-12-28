@@ -102,7 +102,8 @@ export default function LoginPage() {
             <p><strong>学生：</strong>student@jobverse.test</p>
             <p><strong>企业：</strong>employer1@jobverse.test</p>
             <p><strong>学校管理员：</strong>school@jobverse.test</p>
-            <p><strong>密码：</strong>jobverse123</p>
+            <p><strong>平台管理员：</strong>admin@jobverse.test</p>
+            <p style={{ marginTop: 8, marginBottom: 0 }}><strong>密码：</strong>jobverse123</p>
           </div>
 
           <div style={{ textAlign: 'center', marginTop: 16 }}>

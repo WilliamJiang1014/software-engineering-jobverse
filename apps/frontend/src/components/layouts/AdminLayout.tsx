@@ -25,14 +25,23 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
 
-  const menuItems = [
+  // 根据用户角色动态生成菜单项
+  const allMenuItems: Array<MenuProps['items'][0] & { roles?: string[] }> = [
     { key: '/admin', icon: <HomeOutlined />, label: <Link href="/admin">工作台</Link> },
     { key: '/admin/review', icon: <AuditOutlined />, label: <Link href="/admin/review">岗位审核</Link> },
     { key: '/admin/verified', icon: <SafetyOutlined />, label: <Link href="/admin/verified">认证管理</Link> },
-    { key: '/admin/risk', icon: <SecurityScanOutlined />, label: <Link href="/admin/risk">风控规则</Link> },
-    { key: '/admin/audit', icon: <FileTextOutlined />, label: <Link href="/admin/audit">审计日志</Link> },
+    { key: '/admin/risk', icon: <SecurityScanOutlined />, label: <Link href="/admin/risk">风控规则</Link>, roles: ['PLATFORM_ADMIN'] },
+    { key: '/admin/audit', icon: <FileTextOutlined />, label: <Link href="/admin/audit">审计日志</Link>, roles: ['PLATFORM_ADMIN'] },
     { key: '/admin/stats', icon: <BarChartOutlined />, label: <Link href="/admin/stats">数据统计</Link> },
   ];
+
+  // 根据用户角色过滤菜单项
+  const menuItems: MenuProps['items'] = allMenuItems
+    .filter(item => {
+      if (!item.roles) return true; // 没有角色限制的菜单项，所有角色都可以访问
+      return item.roles.includes(user?.role || '');
+    })
+    .map(({ roles, ...item }) => item); // 移除 roles 属性，只保留菜单项需要的属性
 
   const userMenuItems: MenuProps['items'] = [
     { key: 'profile', icon: <UserOutlined />, label: '个人信息' },
