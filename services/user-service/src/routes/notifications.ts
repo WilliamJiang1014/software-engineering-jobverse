@@ -19,9 +19,10 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     const validationResult = paginationSchema.safeParse(req.query);
-    const { page, limit } = validationResult.success 
-      ? validationResult.data 
-      : { page: 1, limit: 20 };
+    if (!validationResult.success) {
+      return res.status(400).json(ErrorResponses.badRequest('分页参数不合法'));
+    }
+    const { page, limit } = validationResult.data;
 
     const skip = (page - 1) * limit;
     const { isRead, type } = req.query;
@@ -30,10 +31,17 @@ router.get('/', async (req: Request, res: Response) => {
     const where: any = { userId };
 
     if (isRead !== undefined) {
+      if (isRead !== 'true' && isRead !== 'false') {
+        return res.status(400).json(ErrorResponses.badRequest('isRead 参数不合法'));
+      }
       where.isRead = isRead === 'true';
     }
 
     if (type) {
+      const allowedTypes = new Set(Object.values(NotificationType));
+      if (!allowedTypes.has(type as NotificationType)) {
+        return res.status(400).json(ErrorResponses.badRequest('type 参数不合法'));
+      }
       where.type = type as NotificationType;
     }
 
@@ -47,17 +55,16 @@ router.get('/', async (req: Request, res: Response) => {
       prisma.notification.count({ where }),
     ]);
 
-    res.json(
-      successResponse({
-        notifications,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      })
-    );
+    res.json(successResponse({
+      items: notifications,
+      notifications,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    }));
   } catch (error) {
     console.error('获取通知列表失败:', error);
     res.status(500).json(ErrorResponses.internalError('获取通知列表失败'));
@@ -193,4 +200,3 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 export default router;
-

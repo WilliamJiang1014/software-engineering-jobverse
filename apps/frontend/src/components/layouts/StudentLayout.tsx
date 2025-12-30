@@ -4,12 +4,14 @@ import {
   FileTextOutlined, 
   StarOutlined,
   UserOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  BellOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import type { MenuProps } from 'antd';
+import NotificationBell from '@/components/NotificationBell';
 
 const { Header, Content, Sider } = Layout;
 const { Text } = Typography;
@@ -26,6 +28,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
     { key: '/student', icon: <DashboardOutlined />, label: <Link href="/student">求职概览</Link> },
     { key: '/student/applications', icon: <FileTextOutlined />, label: <Link href="/student/applications">我的投递</Link> },
     { key: '/student/bookmarks', icon: <StarOutlined />, label: <Link href="/student/bookmarks">我的收藏</Link> },
+    { key: '/student/notifications', icon: <BellOutlined />, label: <Link href="/student/notifications">消息中心</Link> },
     { key: '/student/profile', icon: <UserOutlined />, label: <Link href="/student/profile">个人资料</Link> },
   ];
 
@@ -60,6 +63,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
           <Text style={{ color: '#1890ff', marginLeft: '12px', fontSize: '12px' }}>学生端</Text>
         </div>
         <Space>
+          <NotificationBell />
           <Link href="/">
             <Button type="link" style={{ color: '#fff' }}>
               首页

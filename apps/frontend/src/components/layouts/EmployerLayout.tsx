@@ -5,12 +5,14 @@ import {
   TeamOutlined, 
   BankOutlined,
   UserOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  BellOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import type { MenuProps } from 'antd';
+import NotificationBell from '@/components/NotificationBell';
 
 const { Header, Content, Sider } = Layout;
 const { Text } = Typography;
@@ -27,6 +29,7 @@ export default function EmployerLayout({ children }: EmployerLayoutProps) {
     { key: '/employer', icon: <HomeOutlined />, label: <Link href="/employer">工作台</Link> },
     { key: '/employer/jobs', icon: <FileAddOutlined />, label: <Link href="/employer/jobs">岗位管理</Link> },
     { key: '/employer/candidates', icon: <TeamOutlined />, label: <Link href="/employer/candidates">候选人管理</Link> },
+    { key: '/employer/notifications', icon: <BellOutlined />, label: <Link href="/employer/notifications">消息中心</Link> },
     { key: '/employer/company', icon: <BankOutlined />, label: <Link href="/employer/company">企业信息</Link> },
   ];
 
@@ -60,12 +63,15 @@ export default function EmployerLayout({ children }: EmployerLayoutProps) {
           </Link>
           <Text style={{ color: '#52c41a', marginLeft: '12px', fontSize: '12px' }}>企业端</Text>
         </div>
-        <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
-          <Space style={{ cursor: 'pointer', color: '#fff' }}>
-            <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#52c41a' }} />
-            <span>{user?.name || '企业用户'}</span>
-          </Space>
-        </Dropdown>
+        <Space>
+          <NotificationBell />
+          <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
+            <Space style={{ cursor: 'pointer', color: '#fff' }}>
+              <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#52c41a' }} />
+              <span>{user?.name || '企业用户'}</span>
+            </Space>
+          </Dropdown>
+        </Space>
       </Header>
       <Layout>
         <Sider width={200} style={{ background: '#fff' }}>
@@ -91,4 +97,3 @@ export default function EmployerLayout({ children }: EmployerLayoutProps) {
     </Layout>
   );
 }
-

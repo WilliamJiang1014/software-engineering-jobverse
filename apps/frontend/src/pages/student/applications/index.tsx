@@ -1,12 +1,12 @@
-import { Table, Tag, Card, Typography, Spin, message, Space, Select, Radio } from 'antd';
+import { Table, Tag, Card, Typography, Spin, message, Space, Radio, Button } from 'antd';
 import StudentLayout from '@/components/layouts/StudentLayout';
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { applicationApi } from '@/lib/api';
+import Link from 'next/link';
 
 const { Title } = Typography;
-const { Option } = Select;
 
 interface Application {
   id: string;
@@ -111,6 +111,15 @@ export default function StudentApplications() {
       dataIndex: 'appliedAt', 
       key: 'appliedAt',
       render: (date: string) => new Date(date).toLocaleString('zh-CN'),
+    },
+    {
+      title: '详情',
+      key: 'detail',
+      render: (_, record) => (
+        <Link href={`/student/applications/${record.id}`}>
+          <Button type="link">查看详情</Button>
+        </Link>
+      ),
     },
   ];
 

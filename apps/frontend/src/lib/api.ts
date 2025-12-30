@@ -166,5 +166,14 @@ export const bookmarkApi = {
 
 export const applicationApi = {
   list: (params?: Record<string, unknown>) => api.get('/applications', { params }),
+  get: (id: string) => api.get(`/applications/${id}`),
+  events: (id: string) => api.get(`/applications/${id}/events`),
+  interview: (id: string) => api.get(`/applications/${id}/interview`),
 };
 
+export const notificationApi = {
+  list: (params?: Record<string, unknown>) => api.get('/notifications', { params }),
+  unreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id: string) => api.put(`/notifications/${id}/read`),
+  readAll: () => api.put('/notifications/read-all'),
+};
