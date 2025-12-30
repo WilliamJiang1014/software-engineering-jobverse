@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { successResponse, ErrorResponses } from '@jobverse/shared';
+import { successResponse, ErrorResponses, NotificationType } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
 import { InterviewMode, InterviewStatus, ApplicationEventType } from '@prisma/client';
+import { createNotification } from '../utils/notification';
 
 const router: Router = Router();
 
@@ -85,15 +86,15 @@ router.post('/employer/applications/:applicationId/interviews', async (req: Requ
       },
     });
 
-    // TODO: 创建通知（需要调用 notification-service 或直接写入，组员实现）
-    // await createNotification({
-    //   userId: application.userId,
-    //   type: 'INTERVIEW',
-    //   title: '收到面试邀请',
-    //   content: `企业邀请您参加面试`,
-    //   resourceType: 'INTERVIEW',
-    //   resourceId: interview.id,
-    // });
+    // 创建通知给学生
+    await createNotification({
+      userId: application.userId,
+      type: NotificationType.INTERVIEW,
+      title: '收到面试邀请',
+      content: `您收到了企业的面试邀请，请及时查看并确认`,
+      resourceType: 'INTERVIEW',
+      resourceId: interview.id,
+    });
 
     res.status(201).json(successResponse(interview));
   } catch (error) {
@@ -166,7 +167,7 @@ router.put('/employer/interviews/:id', async (req: Request, res: Response) => {
       },
     });
 
-    // 如果状态变为 CANCELLED，创建事件
+    // 如果状态变为 CANCELLED，创建事件和通知
     if (status === 'CANCELLED') {
       await prisma.applicationEvent.create({
         data: {
@@ -180,7 +181,15 @@ router.put('/employer/interviews/:id', async (req: Request, res: Response) => {
         },
       });
 
-      // TODO: 创建通知（组员实现）
+      // 创建通知给学生
+      await createNotification({
+        userId: interview.application.userId,
+        type: NotificationType.INTERVIEW,
+        title: '面试已取消',
+        content: `企业取消了面试安排`,
+        resourceType: 'INTERVIEW',
+        resourceId: interview.id,
+      });
     }
 
     res.json(successResponse(updated));
@@ -257,7 +266,19 @@ router.put('/interviews/:id/respond', async (req: Request, res: Response) => {
     const interview = await prisma.interview.findUnique({
       where: { id },
       include: {
-        application: true,
+        application: {
+          include: {
+            job: {
+              include: {
+                company: {
+                  include: {
+                    employerInfo: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -293,7 +314,25 @@ router.put('/interviews/:id/respond', async (req: Request, res: Response) => {
       },
     });
 
-    // TODO: 创建通知给企业（组员实现）
+    // 创建通知给企业（通知创建面试的企业用户）
+    const statusLabels: Record<string, string> = {
+      CONFIRMED: '确认',
+      DECLINED: '拒绝',
+      RESCHEDULE_REQUESTED: '请求改期',
+    };
+    
+    // 优先使用创建面试的企业用户ID，否则使用第一个企业用户ID
+    const employerUserId = interview.employerId || interview.application.job.company.employerInfo?.[0]?.userId;
+    if (employerUserId) {
+      await createNotification({
+        userId: employerUserId,
+        type: NotificationType.INTERVIEW,
+        title: '学生响应面试邀请',
+        content: `学生对您的面试邀请做出了${statusLabels[status] || '响应'}`,
+        resourceType: 'INTERVIEW',
+        resourceId: interview.id,
+      });
+    }
 
     res.json(successResponse(updated));
   } catch (error) {

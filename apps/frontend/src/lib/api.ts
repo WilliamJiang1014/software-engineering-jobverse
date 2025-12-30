@@ -100,8 +100,18 @@ export const employerApi = {
   duplicateJob: (id: string) => api.post(`/employer/jobs/${id}/duplicate`),
   getAllCandidates: () => api.get('/employer/candidates'),
   getCandidates: (jobId: string) => api.get(`/employer/jobs/${jobId}/candidates`),
-  updateCandidateStatus: (applicationId: string, status: string) => 
-    api.put(`/employer/candidates/${applicationId}/status`, { status }),
+  updateCandidateStatus: (applicationId: string, data: { status: string; feedback?: string; employerNote?: string }) => 
+    api.put(`/employer/candidates/${applicationId}/status`, data),
+  // 面试相关
+  createInterview: (applicationId: string, data: { scheduledAt: string; mode: string; locationOrLink?: string; note?: string }) =>
+    api.post(`/employer/applications/${applicationId}/interviews`, data),
+  updateInterview: (interviewId: string, data: { scheduledAt?: string; mode?: string; locationOrLink?: string; note?: string; status?: string }) =>
+    api.put(`/employer/interviews/${interviewId}`, data),
+};
+
+export const interviewApi = {
+  respond: (interviewId: string, data: { status: string; studentComment?: string }) =>
+    api.put(`/interviews/${interviewId}/respond`, data),
 };
 
 export const adminApi = {

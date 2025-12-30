@@ -1,9 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { JobStatus, ApplicationStatus, Prisma } from '@prisma/client';
-import { successResponse, ErrorResponses, createJobSchema, updateJobSchema, updateCompanySchema } from '@jobverse/shared';
+import { JobStatus, ApplicationStatus, ApplicationEventType, Prisma } from '@prisma/client';
+import { successResponse, ErrorResponses, createJobSchema, updateJobSchema, updateCompanySchema, NotificationType } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
 import axios from 'axios';
 import { calculateCompanyRisk } from '../utils/risk';
+import { createNotification } from '../utils/notification';
 
 const router: Router = Router();
 
@@ -675,12 +676,13 @@ router.get('/jobs/:id/candidates', async (req: Request, res: Response) => {
 /**
  * 更新候选人状态
  * PUT /api/v1/employer/candidates/:id/status
+ * Body: { status, feedback?, employerNote? }
  */
 router.put('/candidates/:id/status', async (req: Request, res: Response) => {
   try {
     const userId = req.headers['x-user-id'] as string;
     const { id } = req.params; // Application ID
-    const { status } = req.body;
+    const { status, feedback, employerNote } = req.body;
 
     if (!userId) {
       return res.status(401).json(ErrorResponses.unauthorized());
@@ -708,10 +710,64 @@ router.put('/candidates/:id/status', async (req: Request, res: Response) => {
       return res.status(403).json(ErrorResponses.forbidden('无权操作此候选人'));
     }
 
+    const oldStatus = application.status;
+    
+    // 更新状态和反馈
     const updatedApplication = await prisma.application.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        ...(feedback !== undefined && { feedback }),
+        ...(employerNote !== undefined && { employerNote }),
+      },
     });
+
+    // 写入时间线事件
+    // 如果是从 APPLIED 变为 VIEWED，写入 VIEWED 事件
+    if (oldStatus === ApplicationStatus.APPLIED && status === ApplicationStatus.VIEWED) {
+      await prisma.applicationEvent.create({
+        data: {
+          applicationId: id,
+          type: ApplicationEventType.VIEWED,
+          actorRole: 'EMPLOYER',
+          actorId: userId,
+        },
+      });
+    }
+
+    // 写入 STATUS_CHANGED 事件（状态变更时）
+    if (oldStatus !== status) {
+      await prisma.applicationEvent.create({
+        data: {
+          applicationId: id,
+          type: ApplicationEventType.STATUS_CHANGED,
+          actorRole: 'EMPLOYER',
+          actorId: userId,
+          metadata: {
+            fromStatus: oldStatus,
+            toStatus: status,
+            ...(feedback && { feedback }),
+          },
+        },
+      });
+
+      // 创建通知给学生
+      const statusLabels: Record<string, string> = {
+        VIEWED: '已查看',
+        INTERVIEWING: '面试中',
+        ACCEPTED: '已录用',
+        REJECTED: '不合适',
+      };
+
+      await createNotification({
+        userId: application.userId,
+        type: NotificationType.STATUS_UPDATE,
+        title: '投递状态更新',
+        content: `您的投递状态已更新为：${statusLabels[status] || status}`,
+        resourceType: 'APPLICATION',
+        resourceId: id,
+      });
+    }
 
     res.json(successResponse(updatedApplication, '状态更新成功'));
   } catch (error) {
