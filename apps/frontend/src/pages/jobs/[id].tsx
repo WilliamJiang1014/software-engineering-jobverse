@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Layout, Typography, Tag, Space, Button, Card, Spin, message, Avatar, Dropdown } from 'antd';
-import { ArrowLeftOutlined, EnvironmentOutlined, StarOutlined, StarFilled, UserOutlined, LogoutOutlined, DashboardOutlined } from '@ant-design/icons';
+import { Layout, Typography, Tag, Space, Button, Card, Spin, message, Avatar, Dropdown, Modal, Form, Input, Radio, Empty } from 'antd';
+import { ArrowLeftOutlined, EnvironmentOutlined, StarOutlined, StarFilled, UserOutlined, LogoutOutlined, DashboardOutlined, FileTextOutlined } from '@ant-design/icons';
 import Link from 'next/link';
-import { jobApi } from '@/lib/api';
+import { jobApi, resumeApi } from '@/lib/api';
 import styles from '@/styles/Home.module.css';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MenuProps } from 'antd';
@@ -46,6 +46,12 @@ export default function JobDetailPage() {
   const [bookmarking, setBookmarking] = useState(false);
   const [applying, setApplying] = useState(false);
 
+  // 投递弹窗相关状态
+  const [applyModalVisible, setApplyModalVisible] = useState(false);
+  const [resumes, setResumes] = useState<any[]>([]);
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [applyForm] = Form.useForm();
+
   const formatSalary = (min?: number | null, max?: number | null) => {
     if (!min && !max) return '薪资面议';
     if (min && max) return `${Math.round(min / 1000)}K-${Math.round(max / 1000)}K`;
@@ -81,7 +87,7 @@ export default function JobDetailPage() {
     fetchJob();
   }, [id]);
 
-  const handleApply = async () => {
+  const openApplyModal = async () => {
     if (!isAuthenticated) {
       message.warning('请先登录');
       router.push('/login');
@@ -96,16 +102,50 @@ export default function JobDetailPage() {
     if (!job) return;
     if (job.isApplied) return;
 
-    setApplying(true);
+    setApplyModalVisible(true);
+    setResumeLoading(true);
+    
     try {
-      const response = await jobApi.apply(job.id);
-      if (response.code === 200) {
+      // 获取用户简历列表
+      const res: any = await resumeApi.list();
+      const list = res.data || [];
+      setResumes(list);
+      
+      // 默认选中默认简历
+      const defaultResume = list.find((r: any) => r.isDefault);
+      if (defaultResume) {
+        applyForm.setFieldsValue({ resumeId: defaultResume.id });
+      } else if (list.length > 0) {
+        applyForm.setFieldsValue({ resumeId: list[0].id });
+      }
+    } catch (e) {
+      message.error('获取简历列表失败');
+    } finally {
+      setResumeLoading(false);
+    }
+  };
+
+  const handleSubmitApply = async () => {
+    try {
+      const values = await applyForm.validateFields();
+      setApplying(true);
+
+      const response = await jobApi.apply(job!.id, {
+        resumeId: values.resumeId,
+        coverLetter: values.coverLetter,
+      });
+
+      // @ts-ignore
+      if (response.code === 200 || response.success) {
         message.success('投递成功');
-        setJob({ ...job, isApplied: true });
+        setJob({ ...job!, isApplied: true });
+        setApplyModalVisible(false);
       } else {
+        // @ts-ignore
         message.error(response.message || '投递失败');
       }
     } catch (error: any) {
+      console.error(error);
       message.error(error.message || '投递失败');
     } finally {
       setApplying(false);
@@ -235,7 +275,7 @@ export default function JobDetailPage() {
                   <Button
                     type="primary"
                     loading={applying}
-                    onClick={handleApply}
+                    onClick={openApplyModal}
                     disabled={job.isApplied}
                   >
                     {job.isApplied ? '已投递' : '立即投递'}
@@ -253,7 +293,7 @@ export default function JobDetailPage() {
                 )}
                 {!isAuthenticated && (
                   <>
-                    <Button type="primary" onClick={handleApply}>
+                    <Button type="primary" onClick={openApplyModal}>
                       立即投递
                     </Button>
                     <Button
@@ -290,6 +330,57 @@ export default function JobDetailPage() {
           </Text>
         </Footer>
       </Layout>
+
+      <Modal
+        title={`投递岗位：${job?.title}`}
+        open={applyModalVisible}
+        onOk={handleSubmitApply}
+        onCancel={() => setApplyModalVisible(false)}
+        confirmLoading={applying}
+        width={600}
+      >
+        <Form form={applyForm} layout="vertical">
+          <Form.Item
+            name="resumeId"
+            label="选择简历"
+            rules={[{ required: true, message: '请选择一份简历' }]}
+          >
+            {resumeLoading ? (
+              <Spin />
+            ) : resumes.length > 0 ? (
+              <Radio.Group style={{ width: '100%' }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  {resumes.map((resume) => (
+                    <Radio key={resume.id} value={resume.id} style={{ width: '100%', padding: '8px', border: '1px solid #f0f0f0', borderRadius: '4px' }}>
+                      <Space>
+                        <FileTextOutlined />
+                        <span style={{ fontWeight: 500 }}>{resume.name}</span>
+                        {resume.isDefault && <Tag color="blue">默认</Tag>}
+                      </Space>
+                    </Radio>
+                  ))}
+                </Space>
+              </Radio.Group>
+            ) : (
+              <Empty 
+                description={
+                  <span>
+                    暂无简历，<Link href="/student/resumes">去创建</Link>
+                  </span>
+                } 
+              />
+            )}
+          </Form.Item>
+
+          <Form.Item
+            name="coverLetter"
+            label="求职信（可选）"
+            extra="向HR简单介绍一下自己，增加通过率"
+          >
+            <Input.TextArea rows={4} placeholder="您好，我对贵公司的这个岗位非常感兴趣..." />
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }

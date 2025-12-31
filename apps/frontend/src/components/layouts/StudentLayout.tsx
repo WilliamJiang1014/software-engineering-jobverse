@@ -5,7 +5,8 @@ import {
   StarOutlined,
   UserOutlined,
   LogoutOutlined,
-  BellOutlined
+  BellOutlined,
+  SolutionOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +27,7 @@ export default function StudentLayout({ children }: StudentLayoutProps) {
 
   const menuItems = [
     { key: '/student', icon: <DashboardOutlined />, label: <Link href="/student">求职概览</Link> },
+    { key: '/student/resumes', icon: <SolutionOutlined />, label: <Link href="/student/resumes">简历中心</Link> },
     { key: '/student/applications', icon: <FileTextOutlined />, label: <Link href="/student/applications">我的投递</Link> },
     { key: '/student/bookmarks', icon: <StarOutlined />, label: <Link href="/student/bookmarks">我的收藏</Link> },
     { key: '/student/notifications', icon: <BellOutlined />, label: <Link href="/student/notifications">消息中心</Link> },

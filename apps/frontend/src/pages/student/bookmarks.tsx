@@ -2,6 +2,7 @@ import { Card, List, Tag, Space, Button, Empty, Spin, message } from 'antd';
 import { EnvironmentOutlined, StarFilled } from '@ant-design/icons';
 import StudentLayout from '@/components/layouts/StudentLayout';
 import Head from 'next/head';
+import Link from 'next/link';
 import { Typography } from 'antd';
 import { useState, useEffect } from 'react';
 import { bookmarkApi, jobApi } from '@/lib/api';
@@ -113,12 +114,11 @@ export default function StudentBookmarks() {
                     >
                       取消收藏
                     </Button>
-                    <Button 
-                      type="primary"
-                      onClick={() => window.location.href = `/jobs/${bookmark.jobId}`}
-                    >
-                      查看详情
-                    </Button>
+                    <Link href={`/jobs/${bookmark.jobId}`}>
+                      <Button type="primary">
+                        查看详情
+                      </Button>
+                    </Link>
                   </Space>
                 </div>
               </Card>

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { JobStatus, Prisma } from '@prisma/client';
+import { JobStatus, Prisma, ApplicationEventType } from '@prisma/client';
 import { successResponse, ErrorResponses, jobSearchSchema } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
 import { calculateCompanyRisk } from '../utils/risk';
@@ -272,14 +272,53 @@ router.post('/:id/apply', async (req: Request, res: Response) => {
       return res.status(400).json(ErrorResponses.badRequest('您已投递过该岗位'));
     }
 
-    // 3. 创建投递记录
-    const { resume, coverLetter } = req.body;
+    // 3. 处理简历
+    let finalResumeContent = req.body.resume;
+    const { resumeId, coverLetter } = req.body;
+
+    if (resumeId) {
+      const resumeRecord = await prisma.resume.findUnique({
+        where: { id: resumeId },
+      });
+      
+      if (!resumeRecord) {
+        return res.status(404).json(ErrorResponses.notFound('简历不存在'));
+      }
+      
+      if (resumeRecord.userId !== userId) {
+        return res.status(403).json(ErrorResponses.forbidden('无权使用该简历'));
+      }
+      
+      // 使用简历内容
+      finalResumeContent = resumeRecord.content;
+    }
+
+    if (!finalResumeContent) {
+      return res.status(400).json(ErrorResponses.badRequest('请提供简历内容'));
+    }
+
+    // 4. 创建投递记录
     const application = await prisma.application.create({
       data: {
         userId,
         jobId: id,
-        resume,
+        resume: finalResumeContent,
         coverLetter,
+        status: 'APPLIED',
+      },
+    });
+
+    // 5. 创建投递事件
+    await prisma.applicationEvent.create({
+      data: {
+        applicationId: application.id,
+        type: ApplicationEventType.APPLIED,
+        actorRole: 'STUDENT',
+        actorId: userId,
+        metadata: { 
+          resumeId: resumeId || undefined,
+          hasCoverLetter: !!coverLetter 
+        },
       },
     });
 

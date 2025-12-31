@@ -187,3 +187,12 @@ export const notificationApi = {
   markRead: (id: string) => api.put(`/notifications/${id}/read`),
   readAll: () => api.put('/notifications/read-all'),
 };
+
+export const resumeApi = {
+  list: () => api.get('/resumes'),
+  get: (id: string) => api.get(`/resumes/${id}`),
+  create: (data: { name: string; content: string; isDefault?: boolean }) => api.post('/resumes', data),
+  update: (id: string, data: { name?: string; content?: string }) => api.put(`/resumes/${id}`, data),
+  delete: (id: string) => api.delete(`/resumes/${id}`),
+  setDefault: (id: string) => api.put(`/resumes/${id}/default`),
+};
