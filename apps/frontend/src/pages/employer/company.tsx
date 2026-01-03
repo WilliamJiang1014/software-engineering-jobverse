@@ -146,7 +146,7 @@ export default function EmployerCompany() {
           <Form.Item label="企业地址" name="location">
             <Input />
           </Form.Item>
-          <Form.Item label="企业官网" name="website">
+          <Form.Item label="企业官网" name="website" rules={[{ type: 'url', message: '请输入有效的网址' }]}>
             <Input />
           </Form.Item>
           <Form.Item label="企业介绍" name="description">
