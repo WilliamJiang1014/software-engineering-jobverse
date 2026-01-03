@@ -1,13 +1,16 @@
 # Job Service Dockerfile
 FROM node:18-alpine AS base
 
+# 配置 Alpine 使用国内镜像源（阿里云）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
 RUN npm install -g pnpm
 
 FROM base AS deps
 WORKDIR /app
 
 COPY services/job-service/package.json ./
-RUN pnpm install
+RUN HTTP_PROXY=http://172.18.0.1:7890 HTTPS_PROXY=http://172.18.0.1:7890 http_proxy=http://172.18.0.1:7890 https_proxy=http://172.18.0.1:7890 pnpm install
 
 FROM base AS builder
 WORKDIR /app
@@ -16,15 +19,20 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY packages/shared ./packages/shared
 WORKDIR /app/packages/shared
-RUN pnpm install && pnpm build
+RUN HTTP_PROXY=http://172.18.0.1:7890 HTTPS_PROXY=http://172.18.0.1:7890 http_proxy=http://172.18.0.1:7890 https_proxy=http://172.18.0.1:7890 pnpm install && pnpm build
 
 WORKDIR /app
 RUN mkdir -p node_modules/@jobverse && \
     cp -r packages/shared node_modules/@jobverse/shared
 
 # 复制 Prisma schema 并生成 Client
+# 配置代理环境变量以加速 Prisma 二进制下载
 COPY prisma ./prisma
-RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN HTTP_PROXY=http://172.18.0.1:7890 \
+    HTTPS_PROXY=http://172.18.0.1:7890 \
+    http_proxy=http://172.18.0.1:7890 \
+    https_proxy=http://172.18.0.1:7890 \
+    npx prisma generate --schema=./prisma/schema.prisma
 
 COPY services/job-service/src ./src
 COPY services/job-service/tsconfig.json ./
@@ -33,6 +41,9 @@ COPY services/job-service/package.json ./
 RUN pnpm build
 
 FROM node:18-alpine AS runner
+# 配置 Alpine 使用国内镜像源（阿里云）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+
 WORKDIR /app
 
 ENV NODE_ENV=production

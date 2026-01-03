@@ -3,7 +3,12 @@
 echo "🚀 开始数据库初始化..."
 
 # 生成 Prisma Client（必须先生成才能连接）
+# 配置代理环境变量以加速 Prisma 二进制下载
 echo "🔧 生成 Prisma Client..."
+export HTTP_PROXY=http://172.18.0.1:7890
+export HTTPS_PROXY=http://172.18.0.1:7890
+export http_proxy=http://172.18.0.1:7890
+export https_proxy=http://172.18.0.1:7890
 if ! npx prisma generate --schema=./prisma/schema.prisma; then
   echo "❌ Prisma Client 生成失败"
   exit 1
