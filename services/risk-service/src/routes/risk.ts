@@ -375,6 +375,7 @@ router.post('/check', async (req: Request, res: Response) => {
     const qualityRules = allRules.filter(r => r.ruleType === 'content_quality');
     if (qualityRules.length > 0 && type === 'job') {
       // 解析质量规则配置（JSON 格式，如：{"minLength": 50, "requireDescription": true, "requireRequirements": true}）
+      // 注意：seed数据使用下划线命名（min_description_length），代码需要兼容两种命名方式
       let qualityConfig: {
         minLength?: number;
         minDescriptionLength?: number;
@@ -385,9 +386,19 @@ router.post('/check', async (req: Request, res: Response) => {
 
       try {
         if (qualityRules[0]?.content) {
-          qualityConfig = JSON.parse(qualityRules[0].content);
+          const parsed = JSON.parse(qualityRules[0].content);
+          // 支持两种命名方式：下划线命名（seed数据）和驼峰命名
+          qualityConfig = {
+            minLength: parsed.minLength || parsed.min_length,
+            minDescriptionLength: parsed.minDescriptionLength || parsed.min_description_length || 30,
+            minRequirementsLength: parsed.minRequirementsLength || parsed.min_requirements_length || 20,
+            requireDescription: parsed.requireDescription !== undefined ? parsed.requireDescription : (parsed.require_description !== undefined ? parsed.require_description : true),
+            requireRequirements: parsed.requireRequirements !== undefined ? parsed.requireRequirements : (parsed.require_requirements !== undefined ? parsed.require_requirements : true),
+          };
+          console.log('质量监测配置:', qualityConfig);
         }
       } catch (e) {
+        console.error('解析质量规则配置失败:', e);
         // 如果解析失败，使用默认配置
         qualityConfig = {
           minLength: 50,
@@ -397,13 +408,19 @@ router.post('/check', async (req: Request, res: Response) => {
           requireRequirements: true,
         };
       }
+      
+      console.log('质量检测 - 岗位信息:', { 
+        title: title?.substring(0, 20), 
+        descriptionLength: description?.length || 0, 
+        requirementsLength: requirements?.length || 0 
+      });
 
       const qualityIssues: string[] = [];
 
       // 检查描述长度
       if (description) {
         if (qualityConfig.minDescriptionLength && description.length < qualityConfig.minDescriptionLength) {
-          qualityIssues.push(`岗位描述过短（至少需要 ${qualityConfig.minDescriptionLength} 个字符）`);
+          qualityIssues.push(`岗位描述过短（至少需要 ${qualityConfig.minDescriptionLength} 个字符，当前 ${description.length} 个字符）`);
         }
       } else if (qualityConfig.requireDescription) {
         qualityIssues.push('缺少岗位描述');
@@ -412,7 +429,7 @@ router.post('/check', async (req: Request, res: Response) => {
       // 检查要求长度
       if (requirements) {
         if (qualityConfig.minRequirementsLength && requirements.length < qualityConfig.minRequirementsLength) {
-          qualityIssues.push(`岗位要求过短（至少需要 ${qualityConfig.minRequirementsLength} 个字符）`);
+          qualityIssues.push(`岗位要求过短（至少需要 ${qualityConfig.minRequirementsLength} 个字符，当前 ${requirements.length} 个字符）`);
         }
       } else if (qualityConfig.requireRequirements) {
         qualityIssues.push('缺少岗位要求');
@@ -422,12 +439,13 @@ router.post('/check', async (req: Request, res: Response) => {
       if (qualityConfig.minLength) {
         const totalLength = (title?.length || 0) + (description?.length || 0) + (requirements?.length || 0);
         if (totalLength < qualityConfig.minLength) {
-          qualityIssues.push(`内容总长度不足（至少需要 ${qualityConfig.minLength} 个字符）`);
+          qualityIssues.push(`内容总长度不足（至少需要 ${qualityConfig.minLength} 个字符，当前 ${totalLength} 个字符）`);
         }
       }
 
       // 如果有质量问题，触发规则
       if (qualityIssues.length > 0) {
+        console.log('质量检测发现问题:', qualityIssues);
         for (const rule of qualityRules) {
           risks.push({
             ruleId: rule.id,
@@ -442,7 +460,12 @@ router.post('/check', async (req: Request, res: Response) => {
             suggestions.push(`内容质量需要改进：${qualityIssues.join('；')}，已标记为高风险内容，将在审核时优先处理`);
           }
         }
+        console.log('质量检测 - 已添加风险:', risks.filter(r => r.ruleType === 'content_quality'));
+      } else {
+        console.log('质量检测 - 未发现问题');
       }
+    } else {
+      console.log('质量检测 - 未启用或不是岗位类型');
     }
 
     // 如果有 block 类型的风险，则不通过

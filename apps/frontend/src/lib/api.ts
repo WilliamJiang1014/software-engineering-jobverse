@@ -135,6 +135,9 @@ export const adminApi = {
     getLogs: (params?: Record<string, unknown>) => api.get('/admin/audit/logs', { params }),
     getLogDetail: (id: string) => api.get(`/admin/audit/logs/${id}`),
     getStats: () => api.get('/admin/audit/stats'),
+    getTopCompanies: () => api.get('/admin/audit/stats/top-companies'),
+    getTopJobs: () => api.get('/admin/audit/stats/top-jobs'),
+    getDailyTrends: () => api.get('/admin/audit/stats/daily-trends'),
     exportLogs: async (params?: Record<string, unknown>) => {
       const queryString = new URLSearchParams(params as Record<string, string>).toString();
       const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
@@ -179,6 +182,7 @@ export const applicationApi = {
   get: (id: string) => api.get(`/applications/${id}`),
   events: (id: string) => api.get(`/applications/${id}/events`),
   interview: (id: string) => api.get(`/applications/${id}/interview`),
+  stats: () => api.get('/applications/stats'),
 };
 
 export const notificationApi = {

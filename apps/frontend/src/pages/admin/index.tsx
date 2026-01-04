@@ -61,33 +61,69 @@ export default function AdminDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 并行获取所有数据
-      const [statsResponse, pendingResponse, logsResponse] = await Promise.all([
+      // 根据用户角色决定调用哪些 API
+      const isSchoolAdmin = user?.role === 'SCHOOL_ADMIN';
+      
+      // 构建 API 调用列表
+      const apiCalls: Promise<any>[] = [
         adminApi.audit.getStats(),
-        adminApi.review.getPendingJobs({ page: 1, limit: 5 }),
         adminApi.audit.getLogs({ page: 1, limit: 5 }),
-      ]);
-
-      if (statsResponse.code === 200) {
-        setStats({
-          pendingJobs: statsResponse.data.pendingJobs || 0,
-          approvedJobs: statsResponse.data.approvedJobs || 0,
-          totalJobs: statsResponse.data.totalJobs || 0,
-          totalUsers: statsResponse.data.totalUsers || 0,
-          verifiedCompanies: statsResponse.data.verifiedCompanies || 0,
-        });
+      ];
+      
+      // 只有学校管理员才调用审核相关 API
+      if (isSchoolAdmin) {
+        apiCalls.push(adminApi.review.getPendingJobs({ page: 1, limit: 5 }));
       }
-
-      if (pendingResponse.code === 200) {
-        setPendingJobs(pendingResponse.data.items || []);
+      
+      // 使用 Promise.allSettled 确保即使某个 API 失败也不影响其他 API
+      const results = await Promise.allSettled(apiCalls);
+      
+      // 处理统计数据
+      if (results[0].status === 'fulfilled') {
+        if (results[0].value.code === 200) {
+          setStats({
+            pendingJobs: results[0].value.data.pendingJobs || 0,
+            approvedJobs: results[0].value.data.approvedJobs || 0,
+            totalJobs: results[0].value.data.totalJobs || 0,
+            totalUsers: results[0].value.data.totalUsers || 0,
+            verifiedCompanies: results[0].value.data.verifiedCompanies || 0,
+          });
+        } else {
+          console.error('获取统计数据失败:', results[0].value.message || '未知错误');
+        }
+      } else {
+        console.error('获取统计数据请求失败:', results[0].reason);
       }
-
-      if (logsResponse.code === 200) {
-        setRecentActions(logsResponse.data.items || []);
+      
+      // 处理审计日志
+      if (results[1].status === 'fulfilled') {
+        if (results[1].value.code === 200) {
+          setRecentActions(results[1].value.data.items || []);
+        } else {
+          console.error('获取审计日志失败:', results[1].value.message || '未知错误');
+        }
+      } else {
+        console.error('获取审计日志请求失败:', results[1].reason);
+      }
+      
+      // 处理待审核岗位（仅学校管理员）
+      if (isSchoolAdmin && results[2]) {
+        if (results[2].status === 'fulfilled' && results[2].value.code === 200) {
+          setPendingJobs(results[2].value.data.items || []);
+        } else if (results[2].status === 'fulfilled') {
+          console.error('获取待审核岗位失败:', results[2].value.message || '未知错误');
+          setPendingJobs([]);
+        } else {
+          console.error('获取待审核岗位请求失败:', results[2].reason);
+          setPendingJobs([]);
+        }
+      } else if (!isSchoolAdmin) {
+        // 平台管理员不显示待审核岗位
+        setPendingJobs([]);
       }
     } catch (error: any) {
       console.error('获取工作台数据失败:', error);
-      message.error(error.message || '获取工作台数据失败');
+      message.error('获取工作台数据失败，请刷新重试');
     } finally {
       setLoading(false);
     }
@@ -177,40 +213,42 @@ export default function AdminDashboard() {
         </Row>
 
         <Row gutter={16} style={{ marginTop: 24 }}>
-          {/* 待审核 */}
-          <Col span={12}>
-            <Card 
-              title="待审核岗位" 
-              extra={<Link href="/admin/review">查看全部</Link>}
-            >
-              {pendingJobs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-                  暂无待审核岗位
-                </div>
-              ) : (
-                <List
-                  dataSource={pendingJobs}
-                  renderItem={(item) => (
-                    <List.Item
-                      actions={[
-                        <Link key="review" href={`/admin/review`}>
-                          <Button type="link">审核</Button>
-                        </Link>
-                      ]}
-                    >
-                      <List.Item.Meta
-                        title={item.title}
-                        description={`${item.company.name} · 提交于 ${new Date(item.createdAt).toLocaleString('zh-CN')}`}
-                      />
-                    </List.Item>
-                  )}
-                />
-              )}
-            </Card>
-          </Col>
+          {/* 待审核 - 仅学校管理员显示 */}
+          {user?.role === 'SCHOOL_ADMIN' && (
+            <Col span={12}>
+              <Card 
+                title="待审核岗位" 
+                extra={<Link href="/admin/review">查看全部</Link>}
+              >
+                {pendingJobs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                    暂无待审核岗位
+                  </div>
+                ) : (
+                  <List
+                    dataSource={pendingJobs}
+                    renderItem={(item) => (
+                      <List.Item
+                        actions={[
+                          <Link key="review" href={`/admin/review`}>
+                            <Button type="link">审核</Button>
+                          </Link>
+                        ]}
+                      >
+                        <List.Item.Meta
+                          title={item.title}
+                          description={`${item.company.name} · 提交于 ${new Date(item.createdAt).toLocaleString('zh-CN')}`}
+                        />
+                      </List.Item>
+                    )}
+                  />
+                )}
+              </Card>
+            </Col>
+          )}
 
           {/* 最近操作 */}
-          <Col span={12}>
+          <Col span={user?.role === 'SCHOOL_ADMIN' ? 12 : 24}>
             <Card title="最近操作">
               {recentActions.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>

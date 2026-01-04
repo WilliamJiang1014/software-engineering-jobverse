@@ -10,6 +10,8 @@ import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { adminApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -77,6 +79,8 @@ interface ReviewHistory {
 }
 
 export default function AdminReview() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('pending');
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -95,6 +99,14 @@ export default function AdminReview() {
   });
   const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
+
+  // 角色检查：只有学校管理员可以访问
+  useEffect(() => {
+    if (user && user.role !== 'SCHOOL_ADMIN') {
+      message.error('您没有权限访问此页面');
+      router.push('/admin');
+    }
+  }, [user, router]);
 
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -315,6 +327,21 @@ export default function AdminReview() {
       ),
     },
   ];
+
+  // 如果不是学校管理员，显示无权限提示
+  if (user && user.role !== 'SCHOOL_ADMIN') {
+    return (
+      <AdminLayout>
+        <Head>
+          <title>岗位审核 - JobVerse</title>
+        </Head>
+        <Card>
+          <Typography.Title level={4}>无权限访问</Typography.Title>
+          <Text type="secondary">您没有权限访问此页面，只有学校管理员可以审核岗位。</Text>
+        </Card>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

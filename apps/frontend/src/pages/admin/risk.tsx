@@ -189,6 +189,24 @@ export default function AdminRisk() {
           >
             编辑
           </Button>
+          <Button 
+            type="link"
+            onClick={async () => {
+              try {
+                const response = await adminApi.risk.updateRule(record.id, { enabled: !record.enabled });
+                if (response.code === 200) {
+                  message.success(record.enabled ? '已禁用' : '已启用');
+                  fetchRules();
+                } else {
+                  message.error(response.message || '操作失败');
+                }
+              } catch (error: any) {
+                message.error(error.message || '操作失败');
+              }
+            }}
+          >
+            {record.enabled ? '禁用' : '启用'}
+          </Button>
           <Popconfirm
             title="确定要删除这条规则吗？"
             onConfirm={() => handleDelete(record.id)}

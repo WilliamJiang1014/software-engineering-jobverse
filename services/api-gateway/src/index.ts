@@ -232,8 +232,14 @@ app.use('/api/v1/risk', createProxyMiddleware({
   onProxyReq,
 }));
 
-// 代理到审计服务（需要鉴权 + PLATFORM_ADMIN 角色）
-app.use('/api/v1/admin/audit', authMiddleware, requireRole('PLATFORM_ADMIN'), createProxyMiddleware({
+// 代理到审计服务（需要鉴权，允许 SCHOOL_ADMIN 和 PLATFORM_ADMIN）
+app.use('/api/v1/admin/audit', authMiddleware, (req, res, next) => {
+  const userRole = (req as any).user?.role;
+  if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+    return res.status(403).json({ code: 403, message: '无权限访问' });
+  }
+  next();
+}, createProxyMiddleware({
   target: serviceUrls.audit,
   changeOrigin: true,
   pathRewrite: { '^/api/v1/admin/audit': '/api/v1/audit' },

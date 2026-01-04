@@ -14,7 +14,7 @@ router.get('/pending', async (req: Request, res: Response) => {
   try {
     const userRole = req.headers['x-user-role'];
 
-    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+    if (userRole !== 'SCHOOL_ADMIN') {
       return res.status(403).json(ErrorResponses.forbidden());
     }
 
@@ -94,7 +94,7 @@ router.put('/companies/:id/verify', async (req: Request, res: Response) => {
     const { id } = req.params;
     const userRole = req.headers['x-user-role'];
 
-    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+    if (userRole !== 'SCHOOL_ADMIN') {
       return res.status(403).json(ErrorResponses.forbidden());
     }
 
@@ -159,7 +159,7 @@ router.get('/companies', async (req: Request, res: Response) => {
   try {
     const userRole = req.headers['x-user-role'];
 
-    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+    if (userRole !== 'SCHOOL_ADMIN') {
       return res.status(403).json(ErrorResponses.forbidden());
     }
 
@@ -213,7 +213,7 @@ router.get('/history', async (req: Request, res: Response) => {
   try {
     const userRole = req.headers['x-user-role'];
 
-    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+    if (userRole !== 'SCHOOL_ADMIN') {
       return res.status(403).json(ErrorResponses.forbidden());
     }
 
@@ -332,7 +332,7 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const userRole = req.headers['x-user-role'];
 
-    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+    if (userRole !== 'SCHOOL_ADMIN') {
       return res.status(403).json(ErrorResponses.forbidden());
     }
 
@@ -410,7 +410,7 @@ router.post('/jobs/:id', async (req: Request, res: Response) => {
     const userId = req.headers['x-user-id'] as string;
     const userRole = req.headers['x-user-role'];
 
-    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+    if (userRole !== 'SCHOOL_ADMIN') {
       return res.status(403).json(ErrorResponses.forbidden());
     }
 

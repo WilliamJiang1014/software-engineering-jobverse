@@ -122,6 +122,51 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
+ * 获取学生统计数据
+ * GET /api/v1/applications/stats
+ */
+router.get('/stats', async (req: Request, res: Response) => {
+  try {
+    const userId = req.headers['x-user-id'] as string;
+
+    if (!userId) {
+      return res.status(401).json(ErrorResponses.unauthorized());
+    }
+
+    // 并行获取所有统计数据
+    const [
+      totalApplications,
+      pendingApplications, // APPLIED 状态（待查看）
+      acceptedApplications,
+      rejectedApplications,
+      bookmarksCount
+    ] = await Promise.all([
+      // 总投递数
+      prisma.application.count({ where: { userId } }),
+      // 待查看数（APPLIED 状态）
+      prisma.application.count({ where: { userId, status: ApplicationStatus.APPLIED } }),
+      // 已通过数
+      prisma.application.count({ where: { userId, status: ApplicationStatus.ACCEPTED } }),
+      // 已拒绝数
+      prisma.application.count({ where: { userId, status: ApplicationStatus.REJECTED } }),
+      // 收藏数
+      prisma.bookmark.count({ where: { userId } }),
+    ]);
+
+    res.json(successResponse({
+      totalApplications,
+      pendingApplications,
+      acceptedApplications,
+      rejectedApplications,
+      bookmarksCount,
+    }));
+  } catch (error) {
+    console.error('获取学生统计数据失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
+
+/**
  * 获取投递详情
  * GET /api/v1/applications/:id
  * 返回字段：id, status, appliedAt, updatedAt, feedback, job{ id, title, company{name} }

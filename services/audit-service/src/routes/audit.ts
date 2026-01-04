@@ -298,8 +298,10 @@ router.get('/stats', async (req: Request, res: Response) => {
     weekStart.setDate(now.getDate() - 7);
 
     // 岗位统计
+    // 总岗位数：统计所有状态的岗位（用于百分比计算）
+    // 已审核通过的岗位数：用于显示学生可见的岗位数
     const [totalJobs, pendingJobs, approvedJobs, rejectedJobs] = await Promise.all([
-      prisma.job.count(),
+      prisma.job.count(), // 统计所有状态的岗位（用于百分比计算）
       prisma.job.count({ where: { status: 'PENDING_REVIEW' } }),
       prisma.job.count({ where: { status: 'APPROVED' } }),
       prisma.job.count({ where: { status: 'REJECTED' } }),
@@ -351,6 +353,9 @@ router.get('/stats', async (req: Request, res: Response) => {
     ]);
 
     // 平均审核时长（计算最近30天已审核岗位的平均审核时长）
+    // 审核时长 = 审核完成时间 - 岗位状态变为PENDING_REVIEW的时间
+    // 由于审核记录是在审核时才创建的，我们需要使用岗位的updatedAt作为审核开始时间的近似值
+    // 或者查找岗位状态变为PENDING_REVIEW的审计日志
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(now.getDate() - 30);
 
@@ -365,20 +370,50 @@ router.get('/stats', async (req: Request, res: Response) => {
         },
       },
       include: {
-        job: true,
+        job: {
+          select: {
+            id: true,
+            status: true,
+            updatedAt: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
     let avgReviewTime = 0;
     if (reviews.length > 0) {
-      const totalHours = reviews.reduce((sum, review) => {
-        if (review.reviewedAt && review.job.createdAt) {
-          const hours = (review.reviewedAt.getTime() - review.job.createdAt.getTime()) / (1000 * 60 * 60);
-          return sum + hours;
+      // 查找每个岗位状态变为PENDING_REVIEW的时间
+      // 由于没有单独记录，我们使用岗位的updatedAt作为近似值
+      // 但更准确的方法是查找审计日志中岗位状态变为PENDING_REVIEW的记录
+      const validReviews = reviews.filter(review => {
+        // 确保reviewedAt存在
+        return review.reviewedAt !== null;
+      });
+
+      if (validReviews.length > 0) {
+        const totalHours = validReviews.reduce((sum, review) => {
+          if (review.reviewedAt) {
+            // 使用岗位的updatedAt作为审核开始时间的近似值
+            // 当岗位状态变为PENDING_REVIEW时，updatedAt会被更新
+            // 如果岗位的updatedAt晚于reviewedAt，说明可能有问题，使用createdAt作为fallback
+            const reviewStartTime = review.job.updatedAt < review.reviewedAt 
+              ? review.job.updatedAt 
+              : review.job.createdAt;
+            
+            const hours = (review.reviewedAt.getTime() - reviewStartTime.getTime()) / (1000 * 60 * 60);
+            // 确保审核时长在合理范围内（0-720小时，即0-30天）
+            if (hours >= 0 && hours <= 720) {
+              return sum + hours;
+            }
+          }
+          return sum;
+        }, 0);
+        
+        if (totalHours > 0) {
+          avgReviewTime = totalHours / validReviews.length;
         }
-        return sum;
-      }, 0);
-      avgReviewTime = totalHours / reviews.length;
+      }
     }
 
     res.json(successResponse({
@@ -397,6 +432,179 @@ router.get('/stats', async (req: Request, res: Response) => {
     }));
   } catch (error) {
     console.error('获取统计数据失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
+
+/**
+ * 获取热门企业TOP5（按投递数）
+ * GET /api/v1/audit/stats/top-companies
+ */
+router.get('/stats/top-companies', async (req: Request, res: Response) => {
+  try {
+    const userRole = req.headers['x-user-role'];
+
+    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+      return res.status(403).json(ErrorResponses.forbidden());
+    }
+
+    // 查询每个企业的岗位数和总投递数
+    const topCompanies = await prisma.$queryRaw<Array<{
+      companyId: string;
+      companyName: string;
+      jobsCount: bigint;
+      applicationsCount: bigint;
+    }>>`
+      SELECT 
+        c.id as "companyId",
+        c.name as "companyName",
+        COUNT(DISTINCT j.id)::bigint as "jobsCount",
+        COUNT(a.id)::bigint as "applicationsCount"
+      FROM companies c
+      LEFT JOIN jobs j ON j.company_id = c.id AND j.status = 'APPROVED'
+      LEFT JOIN applications a ON a.job_id = j.id
+      GROUP BY c.id, c.name
+      HAVING COUNT(a.id) > 0
+      ORDER BY "applicationsCount" DESC
+      LIMIT 5
+    `;
+
+    const result = topCompanies.map((item, index) => ({
+      rank: index + 1,
+      name: item.companyName,
+      jobs: Number(item.jobsCount),
+      applications: Number(item.applicationsCount),
+    }));
+
+    res.json(successResponse(result));
+  } catch (error) {
+    console.error('获取热门企业失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
+
+/**
+ * 获取热门岗位TOP5（按投递数）
+ * GET /api/v1/audit/stats/top-jobs
+ */
+router.get('/stats/top-jobs', async (req: Request, res: Response) => {
+  try {
+    const userRole = req.headers['x-user-role'];
+
+    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+      return res.status(403).json(ErrorResponses.forbidden());
+    }
+
+    // 查询投递数最多的岗位
+    const topJobs = await prisma.job.findMany({
+      where: {
+        status: 'APPROVED',
+      },
+      include: {
+        company: {
+          select: {
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            applications: true,
+          },
+        },
+      },
+      orderBy: {
+        applications: {
+          _count: 'desc',
+        },
+      },
+      take: 5,
+    });
+
+    const result = topJobs.map((job, index) => ({
+      rank: index + 1,
+      title: job.title,
+      company: job.company.name,
+      applications: job._count.applications,
+    }));
+
+    res.json(successResponse(result));
+  } catch (error) {
+    console.error('获取热门岗位失败:', error);
+    res.status(500).json(ErrorResponses.internalError());
+  }
+});
+
+/**
+ * 获取每日数据趋势（近7天）
+ * GET /api/v1/audit/stats/daily-trends
+ */
+router.get('/stats/daily-trends', async (req: Request, res: Response) => {
+  try {
+    const userRole = req.headers['x-user-role'];
+
+    if (userRole !== 'SCHOOL_ADMIN' && userRole !== 'PLATFORM_ADMIN') {
+      return res.status(403).json(ErrorResponses.forbidden());
+    }
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    // 生成最近7天的日期数组
+    const dates: Date[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(now.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      dates.push(date);
+    }
+
+    // 查询每日数据
+    const dailyStats = await Promise.all(
+      dates.map(async (date) => {
+        const nextDay = new Date(date);
+        nextDay.setDate(date.getDate() + 1);
+
+        const [jobs, applications, users] = await Promise.all([
+          prisma.job.count({
+            where: {
+              createdAt: {
+                gte: date,
+                lt: nextDay,
+              },
+            },
+          }),
+          prisma.application.count({
+            where: {
+              appliedAt: {
+                gte: date,
+                lt: nextDay,
+              },
+            },
+          }),
+          prisma.user.count({
+            where: {
+              createdAt: {
+                gte: date,
+                lt: nextDay,
+              },
+            },
+          }),
+        ]);
+
+        return {
+          date: `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+          jobs,
+          applications,
+          users,
+        };
+      })
+    );
+
+    res.json(successResponse(dailyStats));
+  } catch (error) {
+    console.error('获取每日数据趋势失败:', error);
     res.status(500).json(ErrorResponses.internalError());
   }
 });

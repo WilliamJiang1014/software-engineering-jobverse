@@ -23,54 +23,80 @@ interface Stats {
   avgReviewTime: number;
 }
 
-// 模拟统计数据（如果后端没有提供）
-const weeklyStats = [
-  { date: '12-09', jobs: 5, applications: 23, users: 12 },
-  { date: '12-10', jobs: 8, applications: 35, users: 18 },
-  { date: '12-11', jobs: 3, applications: 28, users: 8 },
-  { date: '12-12', jobs: 6, applications: 42, users: 15 },
-  { date: '12-13', jobs: 4, applications: 31, users: 10 },
-  { date: '12-14', jobs: 7, applications: 38, users: 14 },
-  { date: '12-15', jobs: 5, applications: 25, users: 11 },
-];
+interface WeeklyStat {
+  date: string;
+  jobs: number;
+  applications: number;
+  users: number;
+}
 
-const topCompanies = [
-  { rank: 1, name: 'XX科技有限公司', jobs: 12, applications: 156 },
-  { rank: 2, name: 'YY互联网公司', jobs: 8, applications: 98 },
-  { rank: 3, name: 'ZZ创新科技', jobs: 6, applications: 75 },
-  { rank: 4, name: 'AA金融科技', jobs: 5, applications: 62 },
-  { rank: 5, name: 'BB人工智能', jobs: 4, applications: 48 },
-];
+interface TopCompany {
+  rank: number;
+  name: string;
+  jobs: number;
+  applications: number;
+}
 
-const topJobs = [
-  { rank: 1, title: '前端开发工程师', company: 'XX科技', applications: 45 },
-  { rank: 2, title: 'Java开发工程师', company: 'AA科技', applications: 38 },
-  { rank: 3, title: '产品经理', company: 'YY互联网', applications: 32 },
-  { rank: 4, title: '后端开发工程师', company: 'XX科技', applications: 28 },
-  { rank: 5, title: 'AI算法工程师', company: 'BB人工智能', applications: 25 },
-];
+interface TopJob {
+  rank: number;
+  title: string;
+  company: string;
+  applications: number;
+}
 
 export default function AdminStats() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [activeTab, setActiveTab] = useState('data');
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>([]);
+  const [topCompanies, setTopCompanies] = useState<TopCompany[]>([]);
+  const [topJobs, setTopJobs] = useState<TopJob[]>([]);
 
   useEffect(() => {
-    fetchStats();
+    fetchAllData();
   }, []);
 
-  const fetchStats = async () => {
+  const fetchAllData = async () => {
     setLoading(true);
     try {
-      const response = await adminApi.audit.getStats();
-      if (response.code === 200) {
-        setStats(response.data);
+      // 并行获取所有数据
+      const [statsResponse, trendsResponse, companiesResponse, jobsResponse] = await Promise.allSettled([
+        adminApi.audit.getStats(),
+        adminApi.audit.getDailyTrends(),
+        adminApi.audit.getTopCompanies(),
+        adminApi.audit.getTopJobs(),
+      ]);
+
+      if (statsResponse.status === 'fulfilled' && statsResponse.value.code === 200) {
+        setStats(statsResponse.value.data);
       } else {
-        message.error(response.message || '获取统计数据失败');
+        console.error('获取统计数据失败:', statsResponse.status === 'rejected' ? statsResponse.reason : statsResponse.value);
+      }
+
+      if (trendsResponse.status === 'fulfilled' && trendsResponse.value.code === 200) {
+        setWeeklyStats(trendsResponse.value.data);
+      } else {
+        console.error('获取每日数据趋势失败:', trendsResponse.status === 'rejected' ? trendsResponse.reason : trendsResponse.value);
+        // 如果失败，使用空数组
+        setWeeklyStats([]);
+      }
+
+      if (companiesResponse.status === 'fulfilled' && companiesResponse.value.code === 200) {
+        setTopCompanies(companiesResponse.value.data);
+      } else {
+        console.error('获取热门企业失败:', companiesResponse.status === 'rejected' ? companiesResponse.reason : companiesResponse.value);
+        setTopCompanies([]);
+      }
+
+      if (jobsResponse.status === 'fulfilled' && jobsResponse.value.code === 200) {
+        setTopJobs(jobsResponse.value.data);
+      } else {
+        console.error('获取热门岗位失败:', jobsResponse.status === 'rejected' ? jobsResponse.reason : jobsResponse.value);
+        setTopJobs([]);
       }
     } catch (error: any) {
-      console.error('获取统计数据失败:', error);
-      message.error(error.message || '获取统计数据失败');
+      console.error('获取数据失败:', error);
+      message.error(error.message || '获取数据失败');
     } finally {
       setLoading(false);
     }
@@ -363,11 +389,15 @@ export default function AdminStats() {
                       {stats?.approvedJobs || 0}
                     </div>
                     <div style={{ color: '#666', marginTop: 8 }}>已通过</div>
-                    {stats && stats.totalJobs > 0 && (
-                      <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
-                        {((stats.approvedJobs / stats.totalJobs) * 100).toFixed(1)}%
-                      </div>
-                    )}
+                    {(() => {
+                      // 计算所有状态的岗位总数（用于百分比计算）
+                      const totalStatusJobs = (stats?.approvedJobs || 0) + (stats?.pendingJobs || 0) + (stats?.rejectedJobs || 0);
+                      return totalStatusJobs > 0 && (
+                        <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                          {((stats.approvedJobs / totalStatusJobs) * 100).toFixed(1)}%
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Col>
                 <Col span={8}>
@@ -376,11 +406,15 @@ export default function AdminStats() {
                       {stats?.pendingJobs || 0}
                     </div>
                     <div style={{ color: '#666', marginTop: 8 }}>待审核</div>
-                    {stats && stats.totalJobs > 0 && (
-                      <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
-                        {((stats.pendingJobs / stats.totalJobs) * 100).toFixed(1)}%
-                      </div>
-                    )}
+                    {(() => {
+                      // 计算所有状态的岗位总数（用于百分比计算）
+                      const totalStatusJobs = (stats?.approvedJobs || 0) + (stats?.pendingJobs || 0) + (stats?.rejectedJobs || 0);
+                      return totalStatusJobs > 0 && (
+                        <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                          {((stats.pendingJobs / totalStatusJobs) * 100).toFixed(1)}%
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Col>
                 <Col span={8}>
@@ -389,11 +423,15 @@ export default function AdminStats() {
                       {stats?.rejectedJobs || 0}
                     </div>
                     <div style={{ color: '#666', marginTop: 8 }}>已驳回</div>
-                    {stats && stats.totalJobs > 0 && (
-                      <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
-                        {((stats.rejectedJobs / stats.totalJobs) * 100).toFixed(1)}%
-                      </div>
-                    )}
+                    {(() => {
+                      // 计算所有状态的岗位总数（用于百分比计算）
+                      const totalStatusJobs = (stats?.approvedJobs || 0) + (stats?.pendingJobs || 0) + (stats?.rejectedJobs || 0);
+                      return totalStatusJobs > 0 && (
+                        <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                          {((stats.rejectedJobs / totalStatusJobs) * 100).toFixed(1)}%
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Col>
               </Row>

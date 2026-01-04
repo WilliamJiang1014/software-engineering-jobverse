@@ -5,6 +5,8 @@ import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { adminApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 const { Title } = Typography;
 
@@ -19,13 +21,25 @@ interface Company {
 }
 
 export default function AdminVerified() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
+  // 角色检查：只有学校管理员可以访问
   useEffect(() => {
-    fetchCompanies();
-  }, [pagination.page, pagination.limit]);
+    if (user && user.role !== 'SCHOOL_ADMIN') {
+      message.error('您没有权限访问此页面');
+      router.push('/admin');
+    }
+  }, [user, router]);
+
+  useEffect(() => {
+    if (user?.role === 'SCHOOL_ADMIN') {
+      fetchCompanies();
+    }
+  }, [pagination.page, pagination.limit, user]);
 
   const fetchCompanies = async () => {
     setLoading(true);
@@ -142,6 +156,21 @@ export default function AdminVerified() {
 
   const verifiedCount = companies.filter(c => c.verifiedBySchool).length;
   const unverifiedCount = companies.filter(c => !c.verifiedBySchool).length;
+
+  // 如果不是学校管理员，显示无权限提示
+  if (user && user.role !== 'SCHOOL_ADMIN') {
+    return (
+      <AdminLayout>
+        <Head>
+          <title>认证管理 - JobVerse</title>
+        </Head>
+        <Card>
+          <Typography.Title level={4}>无权限访问</Typography.Title>
+          <Typography.Text type="secondary">您没有权限访问此页面，只有学校管理员可以管理企业认证。</Typography.Text>
+        </Card>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
