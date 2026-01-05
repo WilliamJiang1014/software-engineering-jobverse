@@ -73,7 +73,7 @@ services:
       - REVIEW_SERVICE_URL=http://review-service:3004
       - RISK_SERVICE_URL=http://risk-service:3005
       - AUDIT_SERVICE_URL=http://audit-service:3006
-      - FRONTEND_URL=http://localhost:8080
+      - FRONTEND_URL=http://47.100.197.224:8080
     depends_on:
       - user-service
       - job-service
@@ -235,7 +235,7 @@ services:
       - "8080:8080"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+      - NEXT_PUBLIC_API_URL=http://47.100.197.224:3000/api/v1
       - CI=true
     volumes:
       - ./apps/frontend:/app
