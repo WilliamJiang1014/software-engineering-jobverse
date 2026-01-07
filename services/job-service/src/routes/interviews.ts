@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { successResponse, ErrorResponses, NotificationType } from '@jobverse/shared';
 import { prisma } from '../lib/prisma';
-import { InterviewMode, InterviewStatus, ApplicationEventType } from '@prisma/client';
+import { InterviewMode, InterviewStatus, ApplicationEventType, ApplicationStatus } from '@prisma/client';
 import { createNotification } from '../utils/notification';
 
 const router: Router = Router();
@@ -70,6 +70,27 @@ router.post('/employer/applications/:applicationId/interviews', async (req: Requ
         note,
       },
     });
+
+    // 如果当前投递状态不是 INTERVIEWING，则更新为 INTERVIEWING 并写入状态变更事件
+    if (application.status !== ApplicationStatus.INTERVIEWING) {
+      const oldStatus = application.status;
+      await prisma.application.update({
+        where: { id: applicationId },
+        data: { status: ApplicationStatus.INTERVIEWING },
+      });
+      await prisma.applicationEvent.create({
+        data: {
+          applicationId,
+          type: ApplicationEventType.STATUS_CHANGED,
+          actorRole: 'EMPLOYER',
+          actorId: userId,
+          metadata: {
+            fromStatus: oldStatus,
+            toStatus: ApplicationStatus.INTERVIEWING,
+          },
+        },
+      });
+    }
 
     // 创建投递事件
     await prisma.applicationEvent.create({
